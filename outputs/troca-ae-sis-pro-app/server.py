@@ -9,6 +9,7 @@ import os
 import secrets
 import sqlite3
 import subprocess
+import threading
 import time
 import traceback
 import uuid
@@ -566,8 +567,17 @@ def seed():
         conn.commit()
     ensure_default_permissions()
     ensure_default_roles()
-    ensure_catalog()
-    ensure_daily_backup()
+    if DB_ENGINE != "postgres":
+        ensure_catalog()
+        ensure_daily_backup()
+
+
+def run_startup_tasks():
+    try:
+        ensure_catalog()
+        ensure_daily_backup()
+    except Exception as error:
+        print(f"Tarefas iniciais nao concluidas: {error}", flush=True)
 
 
 def ensure_default_permissions():
@@ -1637,7 +1647,9 @@ def main():
     seed()
     port = int(os.environ.get("PORT", "5050"))
     host = os.environ.get("HOST", "127.0.0.1")
-    print(f"Troca Ae SIS PRO rodando em http://{host}:{port}")
+    if DB_ENGINE == "postgres":
+        threading.Thread(target=run_startup_tasks, daemon=True).start()
+    print(f"Troca Ae SIS PRO rodando em http://{host}:{port}", flush=True)
     ThreadingHTTPServer((host, port), App).serve_forever()
 
 
