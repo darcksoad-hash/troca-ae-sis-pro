@@ -910,7 +910,7 @@ class App(BaseHTTPRequestHandler):
                 "expense": row("SELECT COALESCE(SUM(amount),0) AS total FROM finance_entries WHERE type='Saida'")["total"],
                 "receivable": row("SELECT COALESCE(SUM((SELECT COALESCE(SUM(unit_price*quantity),0) FROM order_parts WHERE order_id=service_orders.id) + (SELECT COALESCE(SUM(labor),0) FROM order_services WHERE order_id=service_orders.id) - discount - paid),0) AS total FROM service_orders")["total"],
                 "order_statuses": order_statuses,
-                "overdue_orders": rows("SELECT number, client_name FROM service_orders WHERE due < ? AND status NOT IN ('Finalizada','Cancelada') ORDER BY due LIMIT 3", (today(),)),
+                "overdue_orders": rows("SELECT service_orders.number, clients.name AS client_name FROM service_orders LEFT JOIN clients ON clients.id=service_orders.client_id WHERE service_orders.due < ? AND service_orders.status NOT IN ('Finalizada','Cancelada') ORDER BY service_orders.due LIMIT 3", (today(),)),
                 "low_parts": rows("SELECT name, stock, min_stock FROM parts WHERE stock <= min_stock ORDER BY stock, name LIMIT 3"),
             })
         elif path in ("/api/bootstrap", "/api/bootstrap-lite"):
