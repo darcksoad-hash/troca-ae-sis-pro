@@ -370,7 +370,7 @@
     }
 
     async function render(page) {
-      if (['orders','parts','pos','finance','reports'].includes(page)) {
+      if (['clients','orders','catalog','parts','services','pos','finance','reports','settings','users'].includes(page)) {
         await ensureFullData();
       }
       const names = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };

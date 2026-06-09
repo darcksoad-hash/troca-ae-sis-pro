@@ -896,33 +896,66 @@ class App(BaseHTTPRequestHandler):
         if path == "/api/me":
             self.send_json({"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])})
         elif path == "/api/dashboard":
-            order_statuses = {
-                item["status"]: item["total"]
-                for item in rows("SELECT status, COUNT(*) AS total FROM service_orders GROUP BY status ORDER BY total DESC")
-            }
-            self.send_json({
-                "open_orders": row("SELECT COUNT(*) AS total FROM service_orders WHERE status NOT IN ('Finalizada','Cancelada')")["total"],
-                "clients": row("SELECT COUNT(*) AS total FROM clients")["total"],
-                "parts_low_stock": row("SELECT COUNT(*) AS total FROM parts WHERE stock <= min_stock")["total"],
-                "parts_no_stock": row("SELECT COUNT(*) AS total FROM parts WHERE stock = 0")["total"],
-                "parts_total": row("SELECT COUNT(*) AS total FROM parts")["total"],
-                "income": row("SELECT COALESCE(SUM(amount - card_fee),0) AS total FROM finance_entries WHERE type='Entrada'")["total"],
-                "expense": row("SELECT COALESCE(SUM(amount),0) AS total FROM finance_entries WHERE type='Saida'")["total"],
-                "receivable": row("SELECT COALESCE(SUM((SELECT COALESCE(SUM(unit_price*quantity),0) FROM order_parts WHERE order_id=service_orders.id) + (SELECT COALESCE(SUM(labor),0) FROM order_services WHERE order_id=service_orders.id) - discount - paid),0) AS total FROM service_orders")["total"],
-                "order_statuses": order_statuses,
-                "overdue_orders": rows("SELECT service_orders.number, clients.name AS client_name FROM service_orders LEFT JOIN clients ON clients.id=service_orders.client_id WHERE service_orders.due < ? AND service_orders.status NOT IN ('Finalizada','Cancelada') ORDER BY service_orders.due LIMIT 3", (today(),)),
-                "low_parts": rows("SELECT name, stock, min_stock FROM parts WHERE stock <= min_stock ORDER BY stock, name LIMIT 3"),
-            })
+            with db() as conn:
+                summary = row_dict(conn.execute(
+                    """SELECT
+                    (SELECT COUNT(*) FROM service_orders WHERE status NOT IN ('Finalizada','Cancelada')) AS open_orders,
+                    (SELECT COUNT(*) FROM clients) AS clients,
+                    (SELECT COUNT(*) FROM parts WHERE stock <= min_stock) AS parts_low_stock,
+                    (SELECT COUNT(*) FROM parts WHERE stock = 0) AS parts_no_stock,
+                    (SELECT COUNT(*) FROM parts) AS parts_total,
+                    (SELECT COALESCE(SUM(amount - card_fee),0) FROM finance_entries WHERE type='Entrada') AS income,
+                    (SELECT COALESCE(SUM(amount),0) FROM finance_entries WHERE type='Saida') AS expense,
+                    (SELECT COALESCE(SUM((SELECT COALESCE(SUM(unit_price*quantity),0) FROM order_parts WHERE order_id=service_orders.id) + (SELECT COALESCE(SUM(labor),0) FROM order_services WHERE order_id=service_orders.id) - discount - paid),0) FROM service_orders) AS receivable"""
+                ).fetchone())
+                order_statuses = {
+                    item["status"]: item["total"]
+                    for item in conn.execute("SELECT status, COUNT(*) AS total FROM service_orders GROUP BY status ORDER BY total DESC").fetchall()
+                }
+                overdue_orders = [
+                    row_dict(item)
+                    for item in conn.execute("SELECT service_orders.number, clients.name AS client_name FROM service_orders LEFT JOIN clients ON clients.id=service_orders.client_id WHERE service_orders.due < ? AND service_orders.status NOT IN ('Finalizada','Cancelada') ORDER BY service_orders.due LIMIT 3", (today(),)).fetchall()
+                ]
+                low_parts = [
+                    row_dict(item)
+                    for item in conn.execute("SELECT name, stock, min_stock FROM parts WHERE stock <= min_stock ORDER BY stock, name LIMIT 3").fetchall()
+                ]
+            summary.update({"order_statuses": order_statuses, "overdue_orders": overdue_orders, "low_parts": low_parts})
+            self.send_json(summary)
         elif path in ("/api/bootstrap", "/api/bootstrap-lite"):
             lite = path == "/api/bootstrap-lite"
             clients_allowed = self.has_permission(user, "clientes", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             catalog_allowed = self.has_permission(user, "fabricantes", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar") or self.has_permission(user, "estoque", "ver")
             stock_allowed = self.has_permission(user, "estoque", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             services_allowed = self.has_permission(user, "servicos", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
+            if lite:
+                self.send_json({
+                    "company": row("SELECT * FROM company_settings WHERE id=1"),
+                    "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
+                    "full": False,
+                    "me": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])},
+                    "clients": [],
+                    "manufacturers": [],
+                    "models": [],
+                    "parts": [],
+                    "services": [],
+                    "suppliers": [],
+                    "stock_movements": [],
+                    "purchases": [],
+                    "purchase_items": [],
+                    "roles": [],
+                    "users": [],
+                    "orders": [],
+                    "finance": [],
+                    "cash_sessions": [],
+                    "pos_sales": [],
+                    "pos_sale_items": [],
+                })
+                return
             self.send_json({
                 "company": row("SELECT * FROM company_settings WHERE id=1"),
                 "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
-                "full": not lite,
+                "full": True,
                 "me": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])},
                 "clients": rows("SELECT * FROM clients ORDER BY name") if clients_allowed else [],
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
