@@ -1,0 +1,2685 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troca Âe SIS PRO</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --surface-2: #f2f4f7;
+      --ink: #20242a;
+      --muted: #667085;
+      --line: #e4e7ec;
+      --green: #f9732f;
+      --green-2: #fff1e8;
+      --blue: #1d5f8f;
+      --blue-2: #e3eff8;
+      --amber: #9a6b12;
+      --amber-2: #fff2ce;
+      --red: #aa3a35;
+      --red-2: #fae7e5;
+      --shadow: 0 14px 34px rgba(16, 24, 40, .08);
+      --radius: 8px;
+      --sidebar-width: 72px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(249, 115, 47, .10), transparent 34%),
+        linear-gradient(180deg, #fbfcff 0%, var(--bg) 38%);
+      color: var(--ink);
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+      transition: grid-template-columns .22s ease;
+    }
+
+    body.sidebar-fixed {
+      --sidebar-width: 268px;
+    }
+
+    body.sidebar-fixed .app {
+      grid-template-columns: 268px minmax(0, 1fr);
+    }
+
+    body.sidebar-fixed aside {
+      width: 268px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    aside {
+      background: rgba(255, 255, 255, .92);
+      color: var(--ink);
+      padding: 22px 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      width: 268px;
+      max-width: 268px;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+      box-shadow: 8px 0 30px rgba(16, 24, 40, .05);
+      backdrop-filter: blur(12px);
+      z-index: 20;
+      transition: width .22s ease, box-shadow .22s ease;
+    }
+
+    body:not(.sidebar-fixed) aside {
+      width: 72px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    body:not(.sidebar-fixed) aside:hover {
+      width: 268px;
+      box-shadow: 18px 0 42px rgba(16, 24, 40, .13);
+    }
+
+    .sidebar-pin {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 9px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 20px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+      min-width: 236px;
+    }
+
+    .brand-text {
+      min-width: 135px;
+      transition: opacity .18s ease;
+    }
+
+    body:not(.sidebar-fixed) aside:not(:hover) .brand-text,
+    body:not(.sidebar-fixed) aside:not(:hover) .nav-label {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--brand-primary, #f9732f);
+      color: white;
+      font-weight: 800;
+    }
+
+    .brand strong { display: block; font-size: 16px; }
+    .brand span { color: var(--muted); font-size: 12px; }
+    .brand-logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      object-fit: contain;
+      background: white;
+      display: none;
+      padding: 3px;
+      border: 1px solid #ffe0cf;
+    }
+
+    nav {
+      display: grid;
+      gap: 5px;
+    }
+
+    .nav-btn {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #475467;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      min-width: 236px;
+    }
+
+    .nav-btn:hover {
+      background: #fff4ed;
+      color: var(--green);
+    }
+
+    .nav-btn.active {
+      background: var(--green);
+      color: white;
+      box-shadow: 0 10px 20px rgba(249, 115, 47, .22);
+    }
+
+    .nav-ico { width: 22px; text-align: center; }
+    .nav-label { transition: opacity .18s ease; }
+
+    main {
+      min-width: 0;
+      padding: 24px 28px;
+      width: 100%;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, .82);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 27px;
+      line-height: 1.15;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 9px;
+      padding: 9px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      min-height: 38px;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: var(--green);
+      background: var(--green);
+      color: white;
+      box-shadow: 0 8px 18px rgba(249, 115, 47, .22);
+    }
+
+    .btn.warn {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .btn.danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .kpi, .panel, .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi {
+      padding: 17px;
+      min-height: 110px;
+      border-top: 3px solid var(--green);
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .kpi strong {
+      display: block;
+      font-size: 29px;
+      margin-top: 12px;
+    }
+
+    .kpi small {
+      display: block;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .two {
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+    }
+
+    .ops-layout {
+      display: grid;
+      grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .os-list {
+      display: grid;
+      gap: 9px;
+      max-height: calc(100vh - 285px);
+      overflow: auto;
+      padding-right: 3px;
+    }
+
+    .os-card {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      display: grid;
+      gap: 8px;
+      text-align: left;
+      transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+    }
+
+    .os-card:hover, .os-card.active {
+      border-color: var(--green);
+      box-shadow: 0 10px 22px rgba(249, 115, 47, .14);
+      transform: translateY(-1px);
+    }
+
+    .os-card-top, .detail-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .os-card strong {
+      font-size: 15px;
+    }
+
+    .os-meta, .detail-grid {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .detail-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      color: var(--ink);
+      margin-top: 14px;
+    }
+
+    .detail-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fbfcfd;
+      min-height: 62px;
+    }
+
+    .detail-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .status-strip {
+      height: 5px;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .panel {
+      overflow: hidden;
+      background: rgba(255,255,255,.94);
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 17px;
+      border-bottom: 1px solid var(--line);
+      gap: 12px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .panel-body {
+      padding: 14px 16px;
+      overflow-x: auto;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 180px;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 10px 11px;
+      min-height: 40px;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      background: #f9fafb;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.green { background: var(--green-2); color: var(--green); }
+    .pill.blue { background: var(--blue-2); color: var(--blue); }
+    .pill.amber { background: var(--amber-2); color: var(--amber); }
+    .pill.red { background: var(--red-2); color: var(--red); }
+
+    .muted { color: var(--muted); }
+    .money { font-variant-numeric: tabular-nums; font-weight: 750; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    body.dark-mode {
+      --bg: #111418;
+      --surface: #171b21;
+      --surface-2: #20252d;
+      --ink: #f4f6f8;
+      --muted: #aab2bf;
+      --line: #2c3440;
+      --shadow: 0 14px 34px rgba(0, 0, 0, .25);
+      background: #111418;
+    }
+
+    body.dark-mode aside,
+    body.dark-mode header,
+    body.dark-mode .panel,
+    body.dark-mode .kpi,
+    body.dark-mode .os-card,
+    body.dark-mode .detail-item {
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode textarea,
+    body.dark-mode .btn,
+    body.dark-mode .icon-btn {
+      background: #101318;
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    body.dark-mode th {
+      background: var(--surface-2);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .form-grid .wide { grid-column: 1 / -1; }
+
+    dialog {
+      position: fixed;
+      inset: 50% auto auto 50%;
+      transform: translate(-50%, -50%);
+      width: min(760px, calc(100vw - 28px));
+      border: 0;
+      border-radius: 8px;
+      padding: 0;
+      box-shadow: 0 24px 80px rgba(24, 35, 31, .28);
+    }
+
+    dialog:not([open]) {
+      display: none;
+    }
+
+    dialog::backdrop {
+      background: rgba(17, 24, 21, .42);
+    }
+
+    .modal-head, .modal-foot {
+      padding: 15px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-foot {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+      justify-content: flex-end;
+    }
+
+    .modal-head h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 18px;
+      max-height: 72vh;
+      overflow: auto;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event {
+      border-left: 4px solid var(--green);
+      padding: 9px 0 9px 12px;
+    }
+
+    .event strong { display: block; }
+    .event span { color: var(--muted); font-size: 13px; }
+
+    .bars {
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 90px;
+      gap: 10px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .bar-track {
+      background: var(--surface-2);
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      background: var(--green);
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, .65fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .chart-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini-chart-row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr) 72px;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .mini-track {
+      height: 9px;
+      background: var(--surface-2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .mini-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--green);
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fbfcfd;
+      font-size: 13px;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pager select {
+      width: auto;
+      min-height: 34px;
+      padding: 6px 8px;
+    }
+
+    .pager .btn {
+      padding: 8px 10px;
+      min-height: 34px;
+    }
+
+    .selected-row {
+      background: rgba(249, 115, 47, 0.09);
+    }
+
+    .report-period {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .photo-manager {
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: #fbfcfd;
+      display: grid;
+      gap: 10px;
+    }
+
+    .photo-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .photo-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      padding: 8px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .photo-item img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 6px;
+      background: var(--surface-2);
+    }
+
+    .permission-grid {
+      overflow: auto;
+    }
+
+    .permission-grid table {
+      min-width: 760px;
+    }
+
+    .export-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .empty {
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      body.sidebar-fixed .app { grid-template-columns: 1fr; }
+      aside {
+        position: static;
+        height: auto;
+        width: 100% !important;
+        max-width: none;
+        padding: 14px;
+      }
+      body:not(.sidebar-fixed) aside:not(:hover) .brand-text,
+      body:not(.sidebar-fixed) aside:not(:hover) .nav-label {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .brand { min-width: 0; padding-bottom: 12px; }
+      nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .nav-btn { min-width: 0; justify-content: flex-start; }
+      .kpis, .two { grid-template-columns: 1fr; }
+      .dash-grid { grid-template-columns: 1fr; }
+      .export-grid { grid-template-columns: 1fr 1fr; }
+      .report-period { grid-template-columns: 1fr 1fr; }
+      .ops-layout { grid-template-columns: 1fr; }
+      .os-list { max-height: none; }
+      .filters { grid-template-columns: 1fr; }
+      header { align-items: flex-start; flex-direction: column; }
+      .toolbar { justify-content: flex-start; }
+    }
+
+    @media (min-width: 981px) and (max-width: 1280px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .two, .ops-layout, .dash-grid { grid-template-columns: 1fr; }
+      .filters { grid-template-columns: minmax(180px, 1fr) 150px 150px; }
+    }
+
+    @media (max-width: 640px) {
+      main { padding: 14px; }
+      nav { grid-template-columns: 1fr 1fr; }
+      .brand { align-items: flex-start; }
+      .toolbar, .detail-actions, .actions, .pager { width: 100%; justify-content: flex-start; }
+      .pager { flex-wrap: wrap; }
+      .btn { white-space: normal; }
+      .form-grid { grid-template-columns: 1fr; }
+      .kpis { grid-template-columns: 1fr; }
+      dialog { width: calc(100vw - 16px); }
+      .modal-body { padding: 14px; max-height: 76vh; }
+      .report-period { grid-template-columns: 1fr; }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <img class="brand-logo" id="brandLogo" alt="Logo da empresa">
+        <div class="brand-mark" id="brandMark">SIS</div>
+        <div class="brand-text">
+          <strong id="brandName">Troca Âe SIS PRO</strong>
+          <span id="brandSubtitle">Assistência técnica</span>
+        </div>
+        <button class="sidebar-pin" id="sidebarPinBtn" type="button" title="Fixar menu">⇔</button>
+      </div>
+      <nav id="nav"></nav>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <h1 id="pageTitle">Painel geral</h1>
+          <div class="sub" id="pageSub">Controle completo da operação, estoque e financeiro.</div>
+        </div>
+        <div class="toolbar">
+          <button class="btn" id="exportBtn" title="Exportar dados">⬇ Exportar</button>
+          <button class="btn" id="resetBtn" title="Restaurar dados de exemplo">↻ Restaurar</button>
+          <button class="btn primary" id="quickOsBtn">+ Nova OS</button>
+        </div>
+      </header>
+
+      <section class="section active" id="dashboard"></section>
+      <section class="section" id="orders"></section>
+      <section class="section" id="clients"></section>
+      <section class="section" id="manufacturers"></section>
+      <section class="section" id="parts"></section>
+      <section class="section" id="services"></section>
+      <section class="section" id="finance"></section>
+      <section class="section" id="reports"></section>
+      <section class="section" id="settings"></section>
+    </main>
+  </div>
+
+  <dialog id="modal">
+    <form method="dialog" id="modalForm">
+      <div class="modal-head">
+        <h3 id="modalTitle"></h3>
+        <button class="icon-btn" value="cancel" title="Fechar" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot">
+        <button class="btn" value="cancel">Cancelar</button>
+        <button class="btn primary" id="saveBtn" value="default">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const today = () => new Date().toISOString().slice(0, 10);
+    const uid = prefix => `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+    const defaultWarrantyTerm = `TERMO DE GARANTIA DO SERVIÇO PRESTADO
+
+A garantia legal do serviço prestado é de 90 dias, contados a partir da data de entrega do aparelho ao cliente, conforme o Código de Defesa do Consumidor. A garantia cobre exclusivamente o serviço executado nesta Ordem de Serviço e as peças substituídas que estiverem descritas no documento.
+
+Durante o prazo de garantia, a assistência técnica fará nova avaliação do aparelho sem custo quando o defeito apresentado estiver diretamente relacionado ao reparo realizado. Caso seja comprovado defeito do serviço ou da peça aplicada, será realizado o reparo necessário dentro das condições técnicas possíveis.
+
+A garantia não cobre danos causados por queda, impacto, oxidação, contato com líquido ou umidade, mau uso, violação do lacre, tentativa de reparo por terceiros, uso de acessórios inadequados, sobrecarga elétrica, atualização ou falha de software, senha esquecida, perda de dados, defeitos em componentes não relacionados ao serviço executado ou problemas já existentes e não aprovados no orçamento.
+
+O cliente declara estar ciente de que dados, fotos, aplicativos, senhas e arquivos pessoais são de sua responsabilidade. Recomenda-se backup antes da execução do serviço. A assistência não se responsabiliza por perda de dados quando o defeito do aparelho, o procedimento técnico ou a condição de entrada impedir o acesso às informações.
+
+Para acionar a garantia, o cliente deve apresentar esta Ordem de Serviço ou documento equivalente, mantendo o aparelho nas mesmas condições de entrega e sem sinais de mau uso ou violação.`;
+
+    const seed = {
+      company: {
+        systemName: 'Troca Âe SIS PRO',
+        tradeName: 'Troca Âe SIS PRO',
+        legalName: '',
+        document: '',
+        phone: '',
+        email: '',
+        zip: '',
+        street: '',
+        number: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        complement: '',
+        logo: 'troca-ae-logo.jpg',
+        primaryColor: '#f9732f',
+        darkColor: '#18231f',
+        theme: 'light',
+        printFooter: 'Obrigado pela preferência.',
+        defaultWarrantyTerm
+      },
+      clients: [
+        { id: 'cli-1', name: 'Mariana Costa', phone: '(11) 99844-1020', email: 'mariana@email.com', document: '123.456.789-10', zip: '01310-100', street: 'Avenida Paulista', number: '120', neighborhood: 'Bela Vista', city: 'São Paulo', state: 'SP', complement: '', notes: 'Prefere contato por WhatsApp.' },
+        { id: 'cli-2', name: 'Rafael Lima', phone: '(21) 97722-5500', email: 'rafael@email.com', document: '987.654.321-00', zip: '22021-001', street: 'Avenida Atlântica', number: '850', neighborhood: 'Copacabana', city: 'Rio de Janeiro', state: 'RJ', complement: '', notes: 'Cliente recorrente.' },
+        { id: 'cli-3', name: 'Camila Rocha', phone: '(31) 98818-2244', email: 'camila@email.com', document: '456.789.123-90', zip: '30140-071', street: 'Rua Goiás', number: '44', neighborhood: 'Centro', city: 'Belo Horizonte', state: 'MG', complement: '', notes: '' }
+      ],
+      manufacturers: [
+        { id: 'man-apple', name: 'Apple', supportPhone: '0800 761 0880', site: 'apple.com/br', notes: 'Linha iPhone.' },
+        { id: 'man-samsung', name: 'Samsung', supportPhone: '4004-0000', site: 'samsung.com/br', notes: 'Linha Galaxy.' },
+        { id: 'man-motorola', name: 'Motorola', supportPhone: '4002-1244', site: 'motorola.com.br', notes: 'Linha Moto e Edge.' }
+      ],
+      productModels: [
+        { id: 'mod-ip13', manufacturerId: 'man-apple', name: 'iPhone 13', category: 'Smartphone', year: 2021, notes: 'A2633 / A2482' },
+        { id: 'mod-s22', manufacturerId: 'man-samsung', name: 'Galaxy S22', category: 'Smartphone', year: 2022, notes: 'SM-S901' },
+        { id: 'mod-edge40', manufacturerId: 'man-motorola', name: 'Edge 40', category: 'Smartphone', year: 2023, notes: 'XT2303' }
+      ],
+      parts: [
+        { id: 'part-1', sku: 'TEL-IP13-OLED', name: 'Tela OLED iPhone 13', category: 'Tela', manufacturerId: 'man-apple', compatibleModels: ['mod-ip13'], cost: 460, price: 720, stock: 3, min: 2, supplier: 'Distribuidora Prime' },
+        { id: 'part-2', sku: 'BAT-S22', name: 'Bateria Galaxy S22', category: 'Bateria', manufacturerId: 'man-samsung', compatibleModels: ['mod-s22'], cost: 145, price: 260, stock: 5, min: 3, supplier: 'CellParts BR' },
+        { id: 'part-3', sku: 'CON-MOTO-C', name: 'Conector carga USB-C Motorola', category: 'Conector', manufacturerId: 'man-motorola', compatibleModels: ['mod-edge40'], cost: 38, price: 120, stock: 2, min: 4, supplier: 'Tech Supply' }
+      ],
+      suppliers: [
+        { id: 'sup-1', name: 'Distribuidora Prime', phone: '(11) 4000-1000', email: 'vendas@prime.local', document: '12.345.678/0001-90', notes: 'Telas premium e OLED.' },
+        { id: 'sup-2', name: 'CellParts BR', phone: '(11) 3000-2200', email: 'contato@cellparts.local', document: '98.765.432/0001-10', notes: 'Baterias e pequenos componentes.' },
+        { id: 'sup-3', name: 'Tech Supply', phone: '(31) 3333-8080', email: 'pedidos@techsupply.local', document: '45.111.222/0001-33', notes: 'Conectores e itens de solda.' }
+      ],
+      stockMovements: [
+        { id: 'mov-1', date: '2026-06-02', partId: 'part-1', type: 'Entrada', qty: 3, unitCost: 460, reason: 'Compra inicial', supplierId: 'sup-1' },
+        { id: 'mov-2', date: '2026-06-01', partId: 'part-3', type: 'Saída', qty: 1, unitCost: 38, reason: 'Baixa por OS 1003', supplierId: '' }
+      ],
+      services: [
+        { id: 'srv-1', name: 'Troca de tela', category: 'Manutenção', labor: 180, warranty: 90, duration: '2h' },
+        { id: 'srv-2', name: 'Diagnóstico avançado', category: 'Diagnóstico', labor: 80, warranty: 0, duration: '1h' },
+        { id: 'srv-3', name: 'Troca de conector de carga', category: 'Solda', labor: 150, warranty: 60, duration: '3h' }
+      ],
+      orders: [
+        { id: 'os-1001', number: 1001, clientId: 'cli-1', deviceManufacturerId: 'man-apple', deviceModelId: 'mod-ip13', deviceBrand: 'Apple', deviceModel: 'iPhone 13', deviceImei: '356789104422310', deviceColor: 'Azul', devicePassword: 'Sem senha', deviceCondition: 'Tela trincada, carcaça preservada', status: 'Em execução', approvalStatus: 'Aprovada', priority: 'Alta', opened: '2026-06-03', due: '2026-06-09', technician: 'Diego', defect: 'Tela quebrada após queda', diagnosis: 'Display sem imagem e touch intermitente.', solution: 'Substituir display e testar sensores', photos: 'foto-entrada-frente.jpg; foto-entrada-verso.jpg', warrantyTerm: '90 dias para tela, sem cobertura para mau uso ou queda.', deliveryTerm: 'Cliente ciente dos testes de entrega.', followUp: 'Enviar mensagem 7 dias após retirada.', parts: [{ id: 'part-1', qty: 1 }], services: ['srv-1'], discount: 30, paid: 300 },
+        { id: 'os-1002', number: 1002, clientId: 'cli-2', deviceManufacturerId: 'man-samsung', deviceModelId: 'mod-s22', deviceBrand: 'Samsung', deviceModel: 'Galaxy S22', deviceImei: '358221009875001', deviceColor: 'Preto', devicePassword: '1234', deviceCondition: 'Não liga', status: 'Aguardando aprovação', approvalStatus: 'Pendente', priority: 'Normal', opened: '2026-06-05', due: '2026-06-10', technician: 'Ana', defect: 'Aparelho não liga', diagnosis: 'Necessário diagnóstico avançado de placa.', solution: 'Diagnóstico inicial', photos: '', warrantyTerm: '', deliveryTerm: '', followUp: '', parts: [], services: ['srv-2'], discount: 0, paid: 0 },
+        { id: 'os-1003', number: 1003, clientId: 'cli-3', deviceManufacturerId: 'man-motorola', deviceModelId: 'mod-edge40', deviceBrand: 'Motorola', deviceModel: 'Edge 40', deviceImei: '351900772200105', deviceColor: 'Verde', devicePassword: 'Desenho', deviceCondition: 'Conector com mau contato', status: 'Finalizada', approvalStatus: 'Aprovada', priority: 'Normal', opened: '2026-06-01', due: '2026-06-04', technician: 'Diego', defect: 'Não carrega', diagnosis: 'Conector oxidado e com folga.', solution: 'Troca do conector de carga', photos: '', warrantyTerm: '60 dias para o serviço executado.', deliveryTerm: 'Aparelho entregue carregando normalmente.', followUp: 'Pós-venda concluído.', parts: [{ id: 'part-3', qty: 1 }], services: ['srv-3'], discount: 0, paid: 270 }
+      ],
+      finance: [
+        { id: 'fin-1', type: 'Entrada', date: '2026-06-04', dueDate: '2026-06-04', category: 'Pagamento OS', description: 'Entrada OS 1001', amount: 300, status: 'Recebido', paymentMethod: 'PIX', orderId: 'os-1001' },
+        { id: 'fin-2', type: 'Entrada', date: '2026-06-04', dueDate: '2026-06-04', category: 'Pagamento OS', description: 'Pagamento OS 1003', amount: 270, status: 'Recebido', paymentMethod: 'Cartão', orderId: 'os-1003' },
+        { id: 'fin-3', type: 'Saída', date: '2026-06-02', dueDate: '2026-06-02', category: 'Compra de peças', description: 'Reposição de telas', amount: 1380, status: 'Pago', paymentMethod: 'Transferência', orderId: '' },
+        { id: 'fin-4', type: 'Saída', date: '2026-06-06', dueDate: '2026-06-10', category: 'Aluguel', description: 'Aluguel loja', amount: 1800, status: 'Pendente', paymentMethod: 'Boleto', orderId: '' }
+      ],
+      roles: [
+        { id: 'role-adm', name: 'Administrador', level: 100, permissions: ['clientes','os','estoque','financeiro','relatorios','fabricantes','configuracoes','auditoria'] },
+        { id: 'role-tec', name: 'Técnico', level: 60, permissions: ['os','estoque','fabricantes'] },
+        { id: 'role-atd', name: 'Atendente', level: 40, permissions: ['clientes','os','fabricantes'] },
+        { id: 'role-fin', name: 'Financeiro', level: 70, permissions: ['financeiro','relatorios'] }
+      ],
+      users: [
+        { id: 'usr-1', name: 'Administrador', email: 'admin@troca-ae.local', roleId: 'role-adm', status: 'Ativo' },
+        { id: 'usr-2', name: 'Ana Souza', email: 'ana@troca-ae.local', roleId: 'role-atd', status: 'Ativo' },
+        { id: 'usr-3', name: 'Diego Martins', email: 'diego@troca-ae.local', roleId: 'role-tec', status: 'Ativo' }
+      ],
+      audit: [
+        { id: 'aud-1', date: '2026-06-08 00:35', user: 'Sistema', action: 'Criação inicial', detail: 'ERP criado com cadastros, OS, estoque e financeiro.' }
+      ]
+    };
+
+    const routes = [
+      ['dashboard', '▦', 'Painel', 'Painel geral', 'Indicadores, alertas e andamento da assistência.'],
+      ['orders', '▣', 'Ordens de serviço', 'Ordens de serviço', 'Orçamentos, reparos, aprovações e entregas.'],
+      ['clients', '◉', 'Clientes', 'Clientes', 'Cadastro, contato e histórico de atendimento.'],
+      ['manufacturers', '◇', 'Fabricantes', 'Fabricantes e modelos', 'Fabricantes, linhas de produtos e modelos atendidos.'],
+      ['parts', '▧', 'Peças', 'Peças e estoque', 'Controle de peças, preços e estoque mínimo.'],
+      ['services', '◈', 'Serviços', 'Serviços', 'Tabela de mão de obra, garantia e prazos.'],
+      ['finance', '◆', 'Financeiro', 'Financeiro', 'Entradas, saídas, contas a pagar e receber.'],
+      ['reports', '▨', 'Relatórios', 'Relatórios', 'Resumo de lucratividade e operação.'],
+      ['settings', '⚙', 'Configurações', 'Configurações', 'Usuários, permissões e auditoria da operação.']
+    ];
+
+    const osStatuses = ['Aberta', 'Aguardando diagnóstico', 'Aguardando aprovação', 'Aprovada', 'Em execução', 'Aguardando peça', 'Finalizada', 'Entregue', 'Cancelada'];
+    const paymentMethods = ['Dinheiro', 'PIX', 'Cartão', 'Boleto', 'Transferência'];
+
+    const expandedCatalog = buildExpandedCatalog();
+    seed.manufacturers = mergeById(seed.manufacturers, expandedCatalog.manufacturers);
+    seed.productModels = mergeById(seed.productModels, expandedCatalog.productModels);
+    seed.parts = mergeById(seed.parts, expandedCatalog.parts);
+
+    let db = load();
+    let current = 'dashboard';
+    let selectedOrderId = db.orders[0]?.id || '';
+    let selectedUserId = db.users[0]?.id || '';
+    const pageSize = 20;
+    const pageState = {};
+    const reportFilters = { start: '', end: '' };
+    let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
+    let pendingOrderPhotos = [];
+
+    function mergeById(currentRows, newRows) {
+      const map = new Map((currentRows || []).map(row => [row.id, row]));
+      (newRows || []).forEach(row => {
+        if (!map.has(row.id)) map.set(row.id, row);
+      });
+      return [...map.values()];
+    }
+
+    function slug(text) {
+      return String(text).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+
+    function getPage(key, total) {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      pageState[key] = Math.min(Math.max(1, pageState[key] || 1), totalPages);
+      return pageState[key];
+    }
+
+    function paginate(key, rows) {
+      const page = getPage(key, rows.length);
+      return rows.slice((page - 1) * pageSize, page * pageSize);
+    }
+
+    function pager(key, total, callbackName) {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = getPage(key, total);
+      if (total <= pageSize) return '';
+      return `<div class="pager"><span>${total} registros</span><button class="btn" ${page <= 1 ? 'disabled' : ''} onclick="changePage('${key}', -1, '${callbackName}')">Anterior</button><span>Página</span><select onchange="setPage('${key}', this.value, '${callbackName}')">${Array.from({ length: totalPages }, (_, i) => `<option value="${i + 1}" ${page === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select><span>de ${totalPages}</span><button class="btn" ${page >= totalPages ? 'disabled' : ''} onclick="changePage('${key}', 1, '${callbackName}')">Próximo</button></div>`;
+    }
+
+    function setPage(key, value, callbackName) {
+      pageState[key] = Number(value) || 1;
+      if (callbackName && typeof window[callbackName] === 'function') window[callbackName]();
+    }
+
+    function changePage(key, direction, callbackName) {
+      pageState[key] = (pageState[key] || 1) + Number(direction || 0);
+      if (callbackName && typeof window[callbackName] === 'function') window[callbackName]();
+    }
+
+    function resetPage(key) {
+      pageState[key] = 1;
+    }
+
+    function buildExpandedCatalog() {
+      const manufacturers = [
+        { id: 'man-apple', name: 'Apple', supportPhone: '0800 761 0880', site: 'apple.com/br', notes: 'Linha iPhone.' },
+        { id: 'man-samsung', name: 'Samsung', supportPhone: '4004-0000', site: 'samsung.com/br', notes: 'Linhas Galaxy S, Note, Z, A e M.' },
+        { id: 'man-motorola', name: 'Motorola', supportPhone: '4002-1244', site: 'motorola.com.br', notes: 'Linhas Moto G, Edge e Razr.' }
+      ];
+      const rawModels = [
+        ['man-apple', 2017, ['iPhone 8','iPhone 8 Plus','iPhone X']],
+        ['man-apple', 2018, ['iPhone XR','iPhone XS','iPhone XS Max']],
+        ['man-apple', 2019, ['iPhone 11','iPhone 11 Pro','iPhone 11 Pro Max']],
+        ['man-apple', 2020, ['iPhone SE 2','iPhone 12 mini','iPhone 12','iPhone 12 Pro','iPhone 12 Pro Max']],
+        ['man-apple', 2021, ['iPhone 13 mini','iPhone 13','iPhone 13 Pro','iPhone 13 Pro Max']],
+        ['man-apple', 2022, ['iPhone SE 3','iPhone 14','iPhone 14 Plus','iPhone 14 Pro','iPhone 14 Pro Max']],
+        ['man-apple', 2023, ['iPhone 15','iPhone 15 Plus','iPhone 15 Pro','iPhone 15 Pro Max']],
+        ['man-apple', 2024, ['iPhone 16','iPhone 16 Plus','iPhone 16 Pro','iPhone 16 Pro Max']],
+        ['man-apple', 2025, ['iPhone 16e','iPhone 17','iPhone 17 Pro','iPhone 17 Pro Max']],
+        ['man-apple', 2026, ['iPhone 17e']],
+        ['man-samsung', 2017, ['Galaxy S8','Galaxy S8+','Galaxy Note8','Galaxy A5 2017','Galaxy J7 Pro']],
+        ['man-samsung', 2018, ['Galaxy S9','Galaxy S9+','Galaxy Note9','Galaxy A8 2018','Galaxy J8']],
+        ['man-samsung', 2019, ['Galaxy S10e','Galaxy S10','Galaxy S10+','Galaxy Note10','Galaxy Note10+','Galaxy A10','Galaxy A20','Galaxy A30','Galaxy A50','Galaxy A70']],
+        ['man-samsung', 2020, ['Galaxy S20','Galaxy S20+','Galaxy S20 Ultra','Galaxy Note20','Galaxy Note20 Ultra','Galaxy A51','Galaxy A71','Galaxy M31']],
+        ['man-samsung', 2021, ['Galaxy S21','Galaxy S21+','Galaxy S21 Ultra','Galaxy Z Flip3','Galaxy Z Fold3','Galaxy A52','Galaxy A72']],
+        ['man-samsung', 2022, ['Galaxy S22','Galaxy S22+','Galaxy S22 Ultra','Galaxy Z Flip4','Galaxy Z Fold4','Galaxy A53','Galaxy A73']],
+        ['man-samsung', 2023, ['Galaxy S23','Galaxy S23+','Galaxy S23 Ultra','Galaxy Z Flip5','Galaxy Z Fold5','Galaxy A34','Galaxy A54']],
+        ['man-samsung', 2024, ['Galaxy S24','Galaxy S24+','Galaxy S24 Ultra','Galaxy Z Flip6','Galaxy Z Fold6','Galaxy A35','Galaxy A55']],
+        ['man-samsung', 2025, ['Galaxy S25','Galaxy S25+','Galaxy S25 Ultra','Galaxy Z Flip7','Galaxy Z Fold7','Galaxy A36','Galaxy A56']],
+        ['man-samsung', 2026, ['Galaxy S26','Galaxy S26+','Galaxy S26 Ultra']],
+        ['man-motorola', 2017, ['Moto G5','Moto G5 Plus','Moto Z2 Play']],
+        ['man-motorola', 2018, ['Moto G6','Moto G6 Plus','Moto Z3 Play']],
+        ['man-motorola', 2019, ['Moto G7','Moto G7 Plus','Motorola One Vision']],
+        ['man-motorola', 2020, ['Moto G8','Moto G8 Plus','Motorola Edge','Motorola Edge Plus','Motorola Razr 5G']],
+        ['man-motorola', 2021, ['Moto G30','Moto G60','Motorola Edge 20','Motorola Edge 20 Pro']],
+        ['man-motorola', 2022, ['Moto G52','Moto G82','Motorola Edge 30','Motorola Razr 2022']],
+        ['man-motorola', 2023, ['Moto G53','Moto G73','Motorola Edge 40','Motorola Razr 40']],
+        ['man-motorola', 2024, ['Moto G54','Moto G84','Motorola Edge 50','Motorola Razr 50']],
+        ['man-motorola', 2025, ['Moto G 2025','Moto G Power 2025','Motorola Edge 60','Motorola Razr 2025']],
+        ['man-motorola', 2026, ['Moto G 2026','Moto G Power 2026','Moto G Stylus 2026','Motorola Razr 2026','Motorola Edge 70']]
+      ];
+      const partTemplates = [
+        ['TELA', 'Tela / display completo', 'Tela', 320, 620],
+        ['BAT', 'Bateria', 'Bateria', 95, 220],
+        ['CONC', 'Conector de carga', 'Conector', 35, 120],
+        ['CAMF', 'Camera frontal', 'Camera', 75, 190],
+        ['CAMT', 'Camera traseira', 'Camera', 120, 320],
+        ['TAMP', 'Tampa traseira', 'Carcaca', 80, 220],
+        ['CARC', 'Carcaca / chassi', 'Carcaca', 140, 360],
+        ['AUR', 'Auricular', 'Audio', 30, 95],
+        ['ALTF', 'Alto-falante viva-voz', 'Audio', 38, 110],
+        ['MIC', 'Microfone', 'Audio', 28, 90],
+        ['VIB', 'Vibracall', 'Motor', 24, 80],
+        ['FLEXP', 'Flex power', 'Flex', 32, 95],
+        ['FLEXV', 'Flex volume', 'Flex', 30, 95],
+        ['SUB', 'Placa sub / carga', 'Placa', 65, 180],
+        ['SIM', 'Bandeja SIM', 'Acabamento', 12, 45],
+        ['LENC', 'Lente da camera', 'Camera', 18, 75],
+        ['SENS', 'Sensor proximidade/luz', 'Sensor', 35, 105],
+        ['BIOM', 'Sensor biometrico', 'Sensor', 45, 140]
+      ];
+      const productModels = rawModels.flatMap(([manufacturerId, year, names]) =>
+        names.map(name => ({ id: `mod-${slug(name)}`, manufacturerId, name, category: 'Smartphone', year, notes: `Catalogo base ${year}` }))
+      );
+      const parts = productModels.flatMap(model => {
+        const manufacturer = manufacturers.find(m => m.id === model.manufacturerId);
+        return partTemplates.map(([prefix, label, category, cost, price]) => ({
+          id: `part-${prefix.toLowerCase()}-${model.id.replace('mod-', '')}`,
+          sku: `${prefix}-${slug(manufacturer.name).slice(0, 3).toUpperCase()}-${slug(model.name).toUpperCase()}`,
+          name: `${label} ${model.name}`,
+          category,
+          manufacturerId: model.manufacturerId,
+          compatibleModels: [model.id],
+          cost,
+          price,
+          stock: 0,
+          min: 1,
+          supplier: 'Fornecedor a definir'
+        }));
+      });
+      return { manufacturers, productModels, parts };
+    }
+
+    function load() {
+      const stored = localStorage.getItem('smartfix-erp');
+      return migrate(stored ? JSON.parse(stored) : structuredClone(seed));
+    }
+
+    function migrate(data) {
+      data.company = { ...structuredClone(seed.company), ...(data.company || {}) };
+      data.clients = (data.clients || []).map(client => {
+        if (!client.street && client.address) {
+          const [street = '', number = ''] = String(client.address).split(',').map(x => x.trim());
+          client.street = street;
+          client.number = number;
+        }
+        client.zip ||= '';
+        client.street ||= '';
+        client.number ||= '';
+        client.neighborhood ||= '';
+        client.city ||= '';
+        client.state ||= '';
+        client.complement ||= '';
+        return client;
+      });
+      data.orders = (data.orders || []).map(order => {
+        if ((!order.deviceBrand || !order.deviceModel) && order.deviceId && Array.isArray(data.devices)) {
+          const device = data.devices.find(d => d.id === order.deviceId);
+          if (device) {
+            order.deviceBrand = device.brand || '';
+            order.deviceModel = device.model || '';
+            order.deviceImei = device.imei || '';
+            order.deviceColor = device.color || '';
+            order.devicePassword = device.password || '';
+            order.deviceCondition = device.condition || '';
+          }
+        }
+        if (!order.deviceManufacturerId && order.deviceBrand) {
+          order.deviceManufacturerId = (data.manufacturers || []).find(m => m.name === order.deviceBrand)?.id || '';
+        }
+        if (!order.deviceModelId && order.deviceModel) {
+          order.deviceModelId = (data.productModels || []).find(m => m.name === order.deviceModel)?.id || '';
+        }
+        return order;
+      });
+      data.manufacturers = mergeById(data.manufacturers || [], seed.manufacturers);
+      data.productModels = mergeById(data.productModels || [], seed.productModels);
+      data.suppliers ||= structuredClone(seed.suppliers);
+      data.stockMovements ||= structuredClone(seed.stockMovements);
+      data.roles ||= structuredClone(seed.roles);
+      data.users ||= structuredClone(seed.users);
+      data.audit ||= structuredClone(seed.audit);
+      data.parts = mergeById(data.parts || [], seed.parts).map(part => {
+        part.manufacturerId ||= '';
+        part.compatibleModels ||= [];
+        return part;
+      });
+      data.orders = (data.orders || []).map(order => {
+        order.status ||= 'Aberta';
+        order.approvalStatus ||= 'Pendente';
+        order.diagnosis ||= '';
+        order.photos ||= '';
+        order.photoFiles ||= [];
+        order.warrantyTerm ||= '';
+        order.deliveryTerm ||= '';
+        order.followUp ||= '';
+        return order;
+      });
+      data.finance = (data.finance || []).map(entry => {
+        entry.dueDate ||= entry.date || today();
+        entry.paymentMethod ||= entry.type === 'Entrada' ? 'PIX' : 'Boleto';
+        return entry;
+      });
+      data.roles = (data.roles || []).map(role => {
+        role.permissions ||= [];
+        role.level = Number(role.level || 0);
+        role.permissionMatrix ||= {};
+        if (!Object.keys(role.permissionMatrix).length) {
+          role.permissions.forEach(moduleKey => {
+            role.permissionMatrix[moduleKey] = ['ver', 'criar', 'editar'];
+          });
+          if (role.permissions.includes('os')) role.permissionMatrix.os = ['ver', 'criar', 'editar', 'aprovar', 'finalizar', 'imprimir'];
+          if (role.permissions.includes('financeiro')) role.permissionMatrix.financeiro = ['ver', 'criar', 'editar', 'pagar'];
+          if (role.permissions.includes('relatorios')) role.permissionMatrix.relatorios = ['ver', 'exportar'];
+          if (role.permissions.includes('auditoria')) role.permissionMatrix.auditoria = ['ver'];
+          if (role.name === 'Administrador') {
+            permissionModules().forEach(([key,, actions]) => role.permissionMatrix[key] = [...actions]);
+          }
+        }
+        return role;
+      });
+      delete data.devices;
+      return data;
+    }
+
+    function save() {
+      localStorage.setItem('smartfix-erp', JSON.stringify(db));
+      applyBranding();
+      render();
+    }
+
+    function reset() {
+      if (!confirm('Restaurar os dados de exemplo?')) return;
+      db = structuredClone(seed);
+      db = migrate(db);
+      save();
+    }
+
+    function calcOrder(order) {
+      const partTotal = order.parts.reduce((sum, item) => {
+        const part = db.parts.find(p => p.id === item.id);
+        return sum + (part ? part.price * Number(item.qty || 0) : 0);
+      }, 0);
+      const serviceTotal = order.services.reduce((sum, id) => {
+        const service = db.services.find(s => s.id === id);
+        return sum + (service ? Number(service.labor || 0) : 0);
+      }, 0);
+      const total = partTotal + serviceTotal - Number(order.discount || 0);
+      return { partTotal, serviceTotal, total, balance: total - Number(order.paid || 0) };
+    }
+
+    function clientName(id) {
+      return db.clients.find(c => c.id === id)?.name || 'Cliente removido';
+    }
+
+    function manufacturerName(id) {
+      return db.manufacturers.find(m => m.id === id)?.name || 'Sem fabricante';
+    }
+
+    function modelName(id) {
+      return db.productModels.find(m => m.id === id)?.name || 'Modelo livre';
+    }
+
+    function roleName(id) {
+      return db.roles.find(r => r.id === id)?.name || 'Perfil removido';
+    }
+
+    function partName(id) {
+      return db.parts.find(p => p.id === id)?.name || 'Peça removida';
+    }
+
+    function supplierName(id) {
+      return db.suppliers.find(s => s.id === id)?.name || 'Sem fornecedor';
+    }
+
+    function deviceName(order) {
+      const brand = order.deviceManufacturerId ? manufacturerName(order.deviceManufacturerId) : order.deviceBrand;
+      const model = order.deviceModelId ? modelName(order.deviceModelId) : order.deviceModel;
+      const name = `${brand || ''} ${model || ''}`.trim();
+      return name || 'Aparelho não informado';
+    }
+
+    function clientAddress(client) {
+      const line = [client.street, client.number].filter(Boolean).join(', ');
+      const place = [client.neighborhood, client.city, client.state].filter(Boolean).join(' - ');
+      return [line, place, client.zip].filter(Boolean).join('<br>');
+    }
+
+    function badge(status) {
+      const color = {
+        'Recebido': 'green', 'Pago': 'green', 'Finalizada': 'green', 'Aprovada': 'green', 'Entregue': 'green',
+        'Em execução': 'blue', 'Entrada': 'blue',
+        'Aguardando aprovação': 'amber', 'Aguardando diagnóstico': 'amber', 'Aguardando peça': 'amber', 'Pendente': 'amber', 'Aberta': 'amber',
+        'Cancelada': 'red', 'Saída': 'red', 'Reprovada': 'red'
+      }[status] || 'blue';
+      return `<span class="pill ${color}">${status}</span>`;
+    }
+
+    function statusColor(status) {
+      if (['Finalizada', 'Aprovada', 'Entregue', 'Pago', 'Recebido'].includes(status)) return '#16a36a';
+      if (['Em execução', 'Entrada'].includes(status)) return '#1d5f8f';
+      if (['Aguardando aprovação', 'Aguardando diagnóstico', 'Aguardando peça', 'Pendente', 'Aberta'].includes(status)) return '#d99116';
+      if (['Cancelada', 'Reprovada', 'Saída'].includes(status)) return '#c7473f';
+      return '#f9732f';
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+    }
+
+    function audit(action, detail) {
+      db.audit ||= [];
+      db.audit.unshift({
+        id: uid('aud'),
+        date: new Date().toLocaleString('pt-BR'),
+        user: 'Administrador',
+        action,
+        detail
+      });
+      db.audit = db.audit.slice(0, 80);
+    }
+
+    function applyBranding() {
+      const company = db.company || seed.company;
+      document.title = company.systemName || 'Troca Âe SIS PRO';
+      document.documentElement.style.setProperty('--green', company.primaryColor || '#f9732f');
+      document.documentElement.style.setProperty('--brand-primary', company.primaryColor || '#f9732f');
+      document.documentElement.style.setProperty('--brand-dark', company.darkColor || '#18231f');
+      document.body.classList.toggle('dark-mode', company.theme === 'dark');
+      const brandName = document.getElementById('brandName');
+      const logo = document.getElementById('brandLogo');
+      const mark = document.getElementById('brandMark');
+      if (brandName) brandName.textContent = company.systemName || 'Troca Âe SIS PRO';
+      if (logo && mark) {
+        if (company.logo) {
+          logo.src = company.logo;
+          logo.style.display = 'block';
+          mark.style.display = 'none';
+        } else {
+          logo.removeAttribute('src');
+          logo.style.display = 'none';
+          mark.style.display = 'grid';
+        }
+      }
+    }
+
+    function readLogoFile(input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        db.company.logo = reader.result;
+        audit('Logo alterada', file.name);
+        save();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function updateSidebarPin() {
+      document.body.classList.toggle('sidebar-fixed', sidebarFixed);
+      const btn = document.getElementById('sidebarPinBtn');
+      if (btn) {
+        btn.textContent = sidebarFixed ? '✓' : '⇔';
+        btn.title = sidebarFixed ? 'Menu fixo ativado' : 'Fixar menu';
+      }
+    }
+
+    function toggleSidebarFixed() {
+      sidebarFixed = !sidebarFixed;
+      localStorage.setItem('troca-ae-sidebar-fixed', sidebarFixed ? '1' : '0');
+      updateSidebarPin();
+    }
+
+    function initNav() {
+      document.getElementById('nav').innerHTML = routes.map(([id, ico, label]) =>
+        `<button class="nav-btn ${id === current ? 'active' : ''}" data-route="${id}"><span class="nav-ico">${ico}</span><span class="nav-label">${label}</span></button>`
+      ).join('');
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.onclick = () => go(btn.dataset.route));
+      updateSidebarPin();
+    }
+
+    function go(route) {
+      current = route;
+      const meta = routes.find(r => r[0] === route);
+      document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === route));
+      document.getElementById('pageTitle').textContent = meta[3];
+      document.getElementById('pageSub').textContent = meta[4];
+      initNav();
+      render();
+    }
+
+    function render() {
+      initNav();
+      renderDashboard();
+      renderOrders();
+      renderClients();
+      renderManufacturers();
+      renderParts();
+      renderServices();
+      renderFinance();
+      renderReports();
+      renderSettings();
+    }
+
+    function renderDashboard() {
+      const openOrders = db.orders.filter(o => o.status !== 'Finalizada' && o.status !== 'Cancelada');
+      const receivables = db.orders.reduce((sum, o) => sum + Math.max(0, calcOrder(o).balance), 0);
+      const income = db.finance.filter(f => f.type === 'Entrada').reduce((s, f) => s + Number(f.amount), 0);
+      const expense = db.finance.filter(f => f.type === 'Saída').reduce((s, f) => s + Number(f.amount), 0);
+      const lowParts = db.parts.filter(p => Number(p.stock) <= Number(p.min));
+      const statusCounts = db.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
+      const maxStatus = Math.max(1, ...Object.values(statusCounts));
+      const topStatuses = Object.entries(statusCounts).sort((a, b) => b[1] - a[1]);
+      const stockSummary = [
+        ['Estoque baixo', lowParts.length],
+        ['Sem estoque', db.parts.filter(p => Number(p.stock) === 0).length],
+        ['Total de peças', db.parts.length]
+      ];
+      document.getElementById('dashboard').innerHTML = `
+        <div class="grid kpis">
+          ${kpi('OS abertas', openOrders.length, 'Serviços em andamento')}
+          ${kpi('A receber', money.format(receivables), 'Saldos de OS não quitadas')}
+          ${kpi('Saldo financeiro', money.format(income - expense), 'Entradas menos saídas')}
+          ${kpi('Estoque baixo', lowParts.length, 'Peças abaixo do mínimo')}
+        </div>
+        <div class="dash-grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Operação por status</h2><button class="btn primary" onclick="go('orders')">Ver OS</button></div>
+            <div class="panel-body chart-list">
+              ${topStatuses.map(([name, count]) => `<div class="mini-chart-row"><strong>${escapeHtml(name)}</strong><div class="mini-track"><div class="mini-fill" style="width:${count / maxStatus * 100}%;background:${statusColor(name)}"></div></div><span>${count} OS</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Resumo financeiro</h2></div>
+            <div class="panel-body">
+              <div class="summary-list">
+                <div class="summary-item"><strong>Entradas</strong><span class="money">${money.format(income)}</span></div>
+                <div class="summary-item"><strong>Saídas</strong><span class="money">${money.format(expense)}</span></div>
+                <div class="summary-item"><strong>Resultado</strong><span class="money">${money.format(income - expense)}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid two" style="margin-top:14px">
+          <div class="panel">
+            <div class="panel-head"><h2>Estoque em resumo</h2><button class="btn" onclick="go('parts')">Ver peças</button></div>
+            <div class="panel-body chart-list">
+              ${stockSummary.map(([name, count]) => `<div class="mini-chart-row"><strong>${name}</strong><div class="mini-track"><div class="mini-fill" style="width:${Math.min(100, count / Math.max(1, db.parts.length) * 100)}%"></div></div><span>${count}</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Alertas operacionais</h2></div>
+            <div class="panel-body summary-list">
+              ${openOrders.filter(o => new Date(o.due) < new Date(today())).slice(0, 3).map(o => `<div class="summary-item"><strong>OS ${o.number} atrasada</strong><span>${escapeHtml(clientName(o.clientId))}</span></div>`).join('') || '<div class="summary-item"><strong>Sem OS atrasada</strong><span>Hoje</span></div>'}
+              ${lowParts.slice(0, 3).map(p => `<div class="summary-item"><strong>${escapeHtml(p.name)}</strong><span>${p.stock}/${p.min}</span></div>`).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function kpi(label, value, hint) {
+      return `<div class="kpi"><span>${label}</span><strong>${value}</strong><small>${hint}</small></div>`;
+    }
+
+    function renderOrders() {
+      const rows = filteredOrders();
+      if (!rows.some(order => order.id === selectedOrderId)) selectedOrderId = rows[0]?.id || db.orders[0]?.id || '';
+      document.getElementById('orders').innerHTML = `
+        <div class="panel">
+          <div class="panel-head"><h2>Painel operacional de OS</h2><button class="btn primary" onclick="openOrderModal()">+ Nova OS</button></div>
+          <div class="panel-body">
+            <div class="filters">
+              <input id="orderSearch" placeholder="Buscar por cliente, aparelho, OS ou técnico" oninput="resetPage('orders'); filterOrders()">
+              <select id="orderStatus" onchange="resetPage('orders'); filterOrders()"><option value="">Todos os status</option>${osStatuses.map(s => `<option>${s}</option>`).join('')}</select>
+              <select id="orderPriority" onchange="resetPage('orders'); filterOrders()"><option value="">Todas prioridades</option><option>Normal</option><option>Alta</option><option>Urgente</option></select>
+            </div>
+            <div class="ops-layout">
+              <div id="ordersList">${orderCards(rows)}</div>
+              <div id="orderDetail">${orderDetail(selectedOrderId)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function filteredOrders() {
+      const q = document.getElementById('orderSearch')?.value.toLowerCase() || '';
+      const status = document.getElementById('orderStatus')?.value || '';
+      const priority = document.getElementById('orderPriority')?.value || '';
+      return db.orders.filter(o => {
+        const hay = `${o.number} ${clientName(o.clientId)} ${deviceName(o)} ${o.deviceImei || ''} ${o.technician} ${o.defect}`.toLowerCase();
+        return (!q || hay.includes(q)) && (!status || o.status === status) && (!priority || o.priority === priority);
+      }).sort((a, b) => Number(b.number) - Number(a.number));
+    }
+
+    function orderCards(rows) {
+      if (!rows.length) return '<div class="empty">Nenhuma ordem encontrada.</div>';
+      const visibleRows = paginate('orders', rows);
+      return `<div class="os-list">${visibleRows.map(order => {
+        const calc = calcOrder(order);
+        return `<button class="os-card ${order.id === selectedOrderId ? 'active' : ''}" onclick="selectOrder('${order.id}')">
+          <div class="status-strip" style="background:${statusColor(order.status)}"></div>
+          <div class="os-card-top"><strong>#${order.number} - ${escapeHtml(clientName(order.clientId))}</strong>${badge(order.status)}</div>
+          <div class="os-meta">
+            <span>${escapeHtml(deviceName(order))}</span>
+            <span>${escapeHtml(order.defect || 'Sem defeito informado')}</span>
+            <span>${order.opened} até ${order.due} | ${escapeHtml(order.priority)}</span>
+            <span class="money">${money.format(calc.total)} | saldo ${money.format(calc.balance)}</span>
+          </div>
+        </button>`;
+      }).join('')}</div>${pager('orders', rows.length, 'filterOrders')}`;
+    }
+
+    function orderDetail(id) {
+      const order = db.orders.find(o => o.id === id);
+      if (!order) return '<div class="panel"><div class="panel-body empty">Selecione uma OS.</div></div>';
+      const calc = calcOrder(order);
+      const parts = order.parts.map(item => {
+        const part = db.parts.find(p => p.id === item.id);
+        return part ? `${part.name} (${item.qty || 1})` : '';
+      }).filter(Boolean).join(', ') || 'Nenhuma peça selecionada';
+      const services = order.services.map(id => db.services.find(s => s.id === id)?.name).filter(Boolean).join(', ') || 'Nenhum serviço selecionado';
+      return `<div class="panel">
+        <div class="panel-head">
+          <h2>OS #${order.number}</h2>
+          ${badge(order.status)}
+        </div>
+        <div class="panel-body">
+          <div class="detail-top">
+            <div>
+              <h2 style="margin:0 0 4px">${escapeHtml(clientName(order.clientId))}</h2>
+              <div class="muted">${escapeHtml(deviceName(order))} | IMEI ${escapeHtml(order.deviceImei || 'não informado')}</div>
+            </div>
+            <div class="money">${money.format(calc.total)}</div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn primary" onclick="openOrderModal('${order.id}')">Editar</button>
+            <button class="btn" onclick="payOrder('${order.id}')">Pagamento</button>
+            <button class="btn" onclick="finishOrder('${order.id}')">Finalizar</button>
+            <button class="btn" onclick="printOrder('${order.id}')">Imprimir OS</button>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item"><span>Status</span>${badge(order.status)}<br><small class="muted">${escapeHtml(order.priority)}</small></div>
+            <div class="detail-item"><span>Prazo</span>${order.opened} até ${order.due}</div>
+            <div class="detail-item"><span>Defeito</span>${escapeHtml(order.defect || '')}</div>
+            <div class="detail-item"><span>Diagnóstico</span>${escapeHtml(order.diagnosis || '')}</div>
+            <div class="detail-item"><span>Peças</span>${escapeHtml(parts)}</div>
+            <div class="detail-item"><span>Serviços</span>${escapeHtml(services)}</div>
+            <div class="detail-item"><span>Pagamento</span>Pago ${money.format(order.paid || 0)}<br><small class="muted">Saldo ${money.format(calc.balance)}</small></div>
+            <div class="detail-item"><span>Pós-venda</span>${escapeHtml(order.followUp || 'Não informado')}</div>
+            <div class="detail-item"><span>Fotos</span>${(order.photoFiles || []).length} arquivo(s)<br><button class="btn" type="button" onclick="downloadOrderPhotosFromSaved('${order.id}')">Baixar fotos</button></div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function selectOrder(id) {
+      selectedOrderId = id;
+      document.getElementById('ordersList').innerHTML = orderCards(filteredOrders());
+      document.getElementById('orderDetail').innerHTML = orderDetail(id);
+    }
+
+    function ordersTable(rows) {
+      if (!rows.length) return '<div class="empty">Nenhuma ordem encontrada.</div>';
+      return `<table><thead><tr><th>OS</th><th>Cliente</th><th>Aparelho</th><th>Status</th><th>Total</th><th>Ações</th></tr></thead><tbody>
+        ${rows.map(o => {
+          const c = calcOrder(o);
+          return `<tr>
+            <td><strong>#${o.number}</strong><br><span class="muted">${o.opened} até ${o.due}</span></td>
+            <td>${escapeHtml(clientName(o.clientId))}<br><span class="muted">${escapeHtml(o.technician)}</span></td>
+            <td>${escapeHtml(deviceName(o))}<br><span class="muted">${escapeHtml(o.defect)}</span></td>
+            <td>${badge(o.status)}<br><span class="muted">${o.priority}</span></td>
+            <td><span class="money">${money.format(c.total)}</span><br><span class="muted">Saldo ${money.format(c.balance)}</span></td>
+            <td><div class="actions">
+              <button class="icon-btn" title="Editar" onclick="openOrderModal('${o.id}')">✎</button>
+              <button class="icon-btn" title="Pagamento" onclick="payOrder('${o.id}')">$</button>
+              <button class="icon-btn" title="Finalizar" onclick="finishOrder('${o.id}')">✓</button>
+              <button class="icon-btn" title="Imprimir OS" onclick="printOrder('${o.id}')">P</button>
+            </div></td>
+          </tr>`;
+        }).join('')}</tbody></table>`;
+    }
+
+    function filterOrders() {
+      const rows = filteredOrders();
+      if (!rows.some(order => order.id === selectedOrderId)) selectedOrderId = rows[0]?.id || '';
+      document.getElementById('ordersList').innerHTML = orderCards(rows);
+      document.getElementById('orderDetail').innerHTML = orderDetail(selectedOrderId);
+    }
+
+    function simpleCrud(section, title, fields, rows, columns, createItem) {
+      document.getElementById(section).innerHTML = `
+        <div class="panel">
+          <div class="panel-head"><h2>${title}</h2><button class="btn primary" onclick="openSimpleModal('${section}')">+ Cadastrar</button></div>
+          <div class="panel-body">
+            <div class="filters"><input id="${section}Search" placeholder="Buscar" oninput="render()"><span></span><span></span></div>
+            ${table(section, fields, rows, columns)}
+          </div>
+        </div>`;
+      window[`openSimpleModal_${section}`] = () => openSimpleModal(section);
+    }
+
+    function table(section, fields, rows, columns, actionSection = section) {
+      const search = document.getElementById(`${section}Search`)?.value.toLowerCase() || '';
+      const list = rows.filter(row => Object.values(row).join(' ').toLowerCase().includes(search));
+      if (!list.length) return '<div class="empty">Nenhum registro encontrado.</div>';
+      const pagedSections = ['manufacturersFiltered', 'productModelsFiltered', 'partsFiltered', 'suppliersFiltered', 'manufacturers', 'productModels', 'parts', 'suppliers'];
+      const shouldPage = pagedSections.includes(section);
+      const visibleRows = shouldPage ? paginate(section, list) : list;
+      return `<table><thead><tr>${columns.map(c => `<th>${c.label}</th>`).join('')}<th>Ações</th></tr></thead><tbody>
+        ${visibleRows.map(row => `<tr>${columns.map(c => `<td>${c.render ? c.render(row) : escapeHtml(row[c.key])}</td>`).join('')}
+        <td><div class="actions"><button class="icon-btn" title="Editar" onclick="openSimpleModal('${actionSection}','${row.id}')">✎</button><button class="icon-btn" title="Excluir" onclick="removeItem('${actionSection}','${row.id}')">×</button></div></td></tr>`).join('')}
+      </tbody></table>${shouldPage ? pager(section, list.length, section.includes('productModels') || section.includes('manufacturers') ? 'filterManufacturers' : 'filterParts') : ''}`;
+    }
+
+    function manufacturerTables(manufacturerRows, modelRows) {
+      return {
+        manufacturers: table('manufacturersFiltered', {}, manufacturerRows, [
+          { label: 'Fabricante', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.site)}</span>` },
+          { label: 'Suporte', key: 'supportPhone' },
+          { label: 'Modelos', key: 'id', render: r => `${db.productModels.filter(m => m.manufacturerId === r.id).length} cadastrados` },
+          { label: 'Observações', key: 'notes' }
+        ], 'manufacturers'),
+        models: table('productModelsFiltered', {}, modelRows, [
+          { label: 'Modelo', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.category)}</span>` },
+          { label: 'Fabricante', key: 'manufacturerId', render: r => escapeHtml(manufacturerName(r.manufacturerId)) },
+          { label: 'Ano', key: 'year' },
+          { label: 'Observações', key: 'notes' }
+        ], 'productModels')
+      };
+    }
+
+    function partTables(partRows, supplierRows, movementRows) {
+      return {
+        parts: table('partsFiltered', {}, partRows, [
+          { label: 'Peça', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.sku)}</span>` },
+          { label: 'Fabricante', key: 'manufacturerId', render: r => `${escapeHtml(manufacturerName(r.manufacturerId))}<br><span class="muted">${(r.compatibleModels || []).map(modelName).join(', ') || 'Sem modelos vinculados'}</span>` },
+          { label: 'Estoque', key: 'stock', render: r => `${Number(r.stock) <= Number(r.min) ? badge('Pendente') : badge('Recebido')}<br><span class="muted">${r.stock} un. / mín. ${r.min}</span>` },
+          { label: 'Preço', key: 'price', render: r => `<span class="money">${money.format(r.price)}</span><br><span class="muted">Custo médio ${money.format(r.cost)}</span>` }
+        ], 'parts'),
+        suppliers: table('suppliersFiltered', {}, supplierRows, [
+          { label: 'Fornecedor', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.document)}</span>` },
+          { label: 'Contato', key: 'phone', render: r => `${escapeHtml(r.phone)}<br><span class="muted">${escapeHtml(r.email)}</span>` },
+          { label: 'Observações', key: 'notes' }
+        ], 'suppliers'),
+        movements: `<table><thead><tr><th>Data</th><th>Peça</th><th>Tipo</th><th>Qtd.</th><th>Custo</th><th>Motivo</th></tr></thead><tbody>
+          ${movementRows.map(m => `<tr><td>${m.date}</td><td>${escapeHtml(partName(m.partId))}</td><td>${badge(m.type)}</td><td>${m.qty}</td><td>${money.format(m.unitCost || 0)}</td><td>${escapeHtml(m.reason)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma movimentação encontrada.</td></tr>'}
+        </tbody></table>`
+      };
+    }
+
+    function financeTable(rows) {
+      if (!rows.length) return '<div class="empty">Nenhum lançamento encontrado.</div>';
+      return `<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Pagamento</th><th>Valor</th><th>Ações</th></tr></thead><tbody>
+        ${rows.map(f => `<tr><td>${f.date}<br><span class="muted">Venc. ${f.dueDate}</span></td><td>${badge(f.type)}</td><td><strong>${escapeHtml(f.description)}</strong><br><span class="muted">${escapeHtml(f.category)}</span></td><td>${badge(f.status)}</td><td>${escapeHtml(f.paymentMethod || '')}</td><td><span class="money">${money.format(f.amount)}</span></td><td><button class="icon-btn" onclick="markFinancePaid('${f.id}')" title="Marcar pago">✓</button><button class="icon-btn" onclick="removeFinance('${f.id}')" title="Excluir">×</button></td></tr>`).join('')}
+      </tbody></table>`;
+    }
+
+    function renderClients() {
+      simpleCrud('clients', 'Cadastro de clientes', {}, db.clients, [
+        { label: 'Nome', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.document)}</span>` },
+        { label: 'Contato', key: 'phone', render: r => `${escapeHtml(r.phone)}<br><span class="muted">${escapeHtml(r.email)}</span>` },
+        { label: 'Endereço', key: 'street', render: r => clientAddress(r) },
+        { label: 'Observações', key: 'notes' }
+      ]);
+    }
+
+    function renderManufacturers() {
+      const tables = manufacturerTables(db.manufacturers, db.productModels);
+      document.getElementById('manufacturers').innerHTML = `
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><h2>Fabricantes</h2><button class="btn primary" onclick="openSimpleModal('manufacturers')">+ Fabricante</button></div>
+            <div class="panel-body">
+              <div class="filters"><input id="manufacturerSearch" placeholder="Pesquisar fabricante, site ou observação" oninput="filterManufacturers()"><span></span><span></span></div>
+              <div id="manufacturersTable">${tables.manufacturers}</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Modelos de produtos</h2><button class="btn primary" onclick="openSimpleModal('productModels')">+ Modelo</button></div>
+            <div class="panel-body">
+              <div class="filters">
+                <input id="modelSearch" placeholder="Pesquisar modelo ou fabricante" oninput="filterManufacturers()">
+                <select id="modelManufacturerFilter" onchange="filterManufacturers()"><option value="">Todos fabricantes</option>${db.manufacturers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}</select>
+                <input id="modelYearFilter" type="number" placeholder="Ano" oninput="filterManufacturers()">
+              </div>
+              <div id="modelsTable">${tables.models}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderParts() {
+      const tables = partTables(db.parts, db.suppliers, db.stockMovements || []);
+      document.getElementById('parts').innerHTML = `
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><h2>Peças e estoque</h2><button class="btn primary" onclick="openSimpleModal('parts')">+ Peça</button></div>
+            <div class="panel-body">
+              <div class="filters">
+                <input id="partSearch" placeholder="Pesquisar peça, SKU, modelo ou fabricante" oninput="filterParts()">
+                <select id="partManufacturerFilter" onchange="filterParts()"><option value="">Todos fabricantes</option>${db.manufacturers.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}</select>
+                <select id="partStockFilter" onchange="filterParts()"><option value="">Todo estoque</option><option value="low">Estoque baixo</option><option value="zero">Sem estoque</option></select>
+              </div>
+              <div id="partsTable">${tables.parts}</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Fornecedores</h2><button class="btn primary" onclick="openSimpleModal('suppliers')">+ Fornecedor</button></div>
+            <div class="panel-body">
+              <div class="filters"><input id="supplierSearch" placeholder="Pesquisar fornecedor, documento ou contato" oninput="filterParts()"><span></span><span></span></div>
+              <div id="suppliersTable">${tables.suppliers}</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px">
+          <div class="panel-head"><h2>Histórico de movimentação</h2><button class="btn primary" onclick="openStockEntryModal()">+ Entrada de compra</button></div>
+          <div class="panel-body">
+            <div class="filters">
+              <input id="movementSearch" placeholder="Pesquisar peça, motivo ou fornecedor" oninput="filterParts()">
+              <select id="movementTypeFilter" onchange="filterParts()"><option value="">Todos tipos</option><option>Entrada</option><option>Saída</option></select>
+              <span></span>
+            </div>
+            <div id="movementsTable">${tables.movements}</div>
+          </div>
+        </div>`;
+    }
+
+    function renderServices() {
+      simpleCrud('services', 'Tabela de serviços', {}, db.services, [
+        { label: 'Serviço', key: 'name', render: r => `<strong>${escapeHtml(r.name)}</strong><br><span class="muted">${escapeHtml(r.category)}</span>` },
+        { label: 'Mão de obra', key: 'labor', render: r => `<span class="money">${money.format(r.labor)}</span>` },
+        { label: 'Garantia', key: 'warranty', render: r => `${r.warranty} dias` },
+        { label: 'Duração', key: 'duration' }
+      ]);
+    }
+
+    function renderFinance() {
+      const income = db.finance.filter(f => f.type === 'Entrada').reduce((s, f) => s + Number(f.amount), 0);
+      const expense = db.finance.filter(f => f.type === 'Saída').reduce((s, f) => s + Number(f.amount), 0);
+      const receivable = db.finance.filter(f => f.type === 'Entrada' && f.status === 'Pendente').reduce((s, f) => s + Number(f.amount), 0);
+      const payable = db.finance.filter(f => f.type === 'Saída' && f.status === 'Pendente').reduce((s, f) => s + Number(f.amount), 0);
+      document.getElementById('finance').innerHTML = `
+        <div class="grid kpis">
+          ${kpi('Entradas', money.format(income), 'Receitas registradas')}
+          ${kpi('Saídas', money.format(expense), 'Custos e despesas')}
+          ${kpi('Resultado', money.format(income - expense), 'Saldo operacional')}
+          ${kpi('A pagar / receber', `${money.format(payable)} / ${money.format(receivable)}`, 'Contas em aberto')}
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Lançamentos financeiros</h2><button class="btn primary" onclick="openFinanceModal()">+ Lançamento</button></div>
+          <div class="panel-body">
+            <div class="filters">
+              <input id="financeSearch" placeholder="Pesquisar descrição, categoria, valor ou OS" oninput="filterFinance()">
+              <select id="financeTypeFilter" onchange="filterFinance()"><option value="">Todos tipos</option><option>Entrada</option><option>Saída</option></select>
+              <select id="financeStatusFilter" onchange="filterFinance()"><option value="">Todos status</option><option>Recebido</option><option>Pago</option><option>Pendente</option></select>
+            </div>
+            <div class="filters">
+              <select id="financeMethodFilter" onchange="filterFinance()"><option value="">Todas formas</option>${paymentMethods.map(m => `<option>${m}</option>`).join('')}</select>
+              <input id="financeDateFilter" type="date" onchange="filterFinance()">
+              <span></span>
+            </div>
+            <div id="financeTable">${financeTable(db.finance)}</div>
+          </div>
+        </div>`;
+    }
+
+    function filterManufacturers() {
+      const manufacturerQ = (document.getElementById('manufacturerSearch')?.value || '').toLowerCase();
+      const modelQ = (document.getElementById('modelSearch')?.value || '').toLowerCase();
+      const manufacturerId = document.getElementById('modelManufacturerFilter')?.value || '';
+      const year = document.getElementById('modelYearFilter')?.value || '';
+      const manufacturerRows = db.manufacturers.filter(m => `${m.name} ${m.site} ${m.supportPhone} ${m.notes}`.toLowerCase().includes(manufacturerQ));
+      const modelRows = db.productModels.filter(m => {
+        const hay = `${m.name} ${m.category} ${m.year} ${m.notes} ${manufacturerName(m.manufacturerId)}`.toLowerCase();
+        return (!modelQ || hay.includes(modelQ)) && (!manufacturerId || m.manufacturerId === manufacturerId) && (!year || String(m.year) === year);
+      });
+      const tables = manufacturerTables(manufacturerRows, modelRows);
+      document.getElementById('manufacturersTable').innerHTML = tables.manufacturers;
+      document.getElementById('modelsTable').innerHTML = tables.models;
+    }
+
+    function filterParts() {
+      const partQ = (document.getElementById('partSearch')?.value || '').toLowerCase();
+      const manufacturerId = document.getElementById('partManufacturerFilter')?.value || '';
+      const stockFilter = document.getElementById('partStockFilter')?.value || '';
+      const supplierQ = (document.getElementById('supplierSearch')?.value || '').toLowerCase();
+      const movementQ = (document.getElementById('movementSearch')?.value || '').toLowerCase();
+      const movementType = document.getElementById('movementTypeFilter')?.value || '';
+      const partRows = db.parts.filter(part => {
+        const models = (part.compatibleModels || []).map(modelName).join(' ');
+        const hay = `${part.name} ${part.sku} ${part.category} ${part.supplier} ${manufacturerName(part.manufacturerId)} ${models}`.toLowerCase();
+        const stockOk = !stockFilter || (stockFilter === 'low' && Number(part.stock) <= Number(part.min)) || (stockFilter === 'zero' && Number(part.stock) === 0);
+        return (!partQ || hay.includes(partQ)) && (!manufacturerId || part.manufacturerId === manufacturerId) && stockOk;
+      });
+      const supplierRows = db.suppliers.filter(s => `${s.name} ${s.document} ${s.phone} ${s.email} ${s.notes}`.toLowerCase().includes(supplierQ));
+      const movementRows = (db.stockMovements || []).filter(m => {
+        const hay = `${partName(m.partId)} ${m.type} ${m.reason} ${supplierName(m.supplierId)} ${m.date}`.toLowerCase();
+        return (!movementQ || hay.includes(movementQ)) && (!movementType || m.type === movementType);
+      });
+      const tables = partTables(partRows, supplierRows, movementRows);
+      document.getElementById('partsTable').innerHTML = tables.parts;
+      document.getElementById('suppliersTable').innerHTML = tables.suppliers;
+      document.getElementById('movementsTable').innerHTML = tables.movements;
+    }
+
+    function filterFinance() {
+      const q = (document.getElementById('financeSearch')?.value || '').toLowerCase();
+      const type = document.getElementById('financeTypeFilter')?.value || '';
+      const status = document.getElementById('financeStatusFilter')?.value || '';
+      const method = document.getElementById('financeMethodFilter')?.value || '';
+      const date = document.getElementById('financeDateFilter')?.value || '';
+      const rows = db.finance.filter(f => {
+        const order = f.orderId ? db.orders.find(o => o.id === f.orderId) : null;
+        const hay = `${f.description} ${f.category} ${f.amount} ${f.type} ${f.status} ${f.paymentMethod} ${order ? order.number : ''} ${order ? clientName(order.clientId) : ''}`.toLowerCase();
+        return (!q || hay.includes(q)) && (!type || f.type === type) && (!status || f.status === status) && (!method || f.paymentMethod === method) && (!date || f.date === date || f.dueDate === date);
+      });
+      document.getElementById('financeTable').innerHTML = financeTable(rows);
+    }
+
+    function rowInReportPeriod(date) {
+      if (!date) return true;
+      return (!reportFilters.start || date >= reportFilters.start) && (!reportFilters.end || date <= reportFilters.end);
+    }
+
+    function setReportPeriod() {
+      syncReportPeriodFromInputs();
+      renderReports();
+    }
+
+    function syncReportPeriodFromInputs() {
+      const startInput = document.getElementById('reportStart');
+      const endInput = document.getElementById('reportEnd');
+      if (startInput) reportFilters.start = startInput.value || '';
+      if (endInput) reportFilters.end = endInput.value || '';
+    }
+
+    function clearReportPeriod() {
+      reportFilters.start = '';
+      reportFilters.end = '';
+      renderReports();
+    }
+
+    function reportPeriodLabel() {
+      if (reportFilters.start && reportFilters.end) return `Período: ${reportFilters.start} até ${reportFilters.end}`;
+      if (reportFilters.start) return `A partir de ${reportFilters.start}`;
+      if (reportFilters.end) return `Até ${reportFilters.end}`;
+      return 'Sem filtro de data';
+    }
+
+    function renderReports() {
+      const reportOrders = db.orders.filter(o => rowInReportPeriod(o.opened));
+      const reportFinance = db.finance.filter(f => rowInReportPeriod(f.date || f.dueDate));
+      const statusCounts = reportOrders.reduce((acc, o) => (acc[o.status] = (acc[o.status] || 0) + 1, acc), {});
+      const max = Math.max(1, ...Object.values(statusCounts));
+      const revenueByService = db.services.map(s => ({
+        name: s.name,
+        total: reportOrders.filter(o => o.services.includes(s.id)).reduce((sum, o) => sum + Number(s.labor), 0)
+      })).sort((a, b) => b.total - a.total);
+      const income = reportFinance.filter(f => f.type === 'Entrada').reduce((s, f) => s + Number(f.amount), 0);
+      const expense = reportFinance.filter(f => f.type === 'Saída').reduce((s, f) => s + Number(f.amount), 0);
+      const orderProfit = reportOrders.map(order => {
+        const calc = calcOrder(order);
+        const cost = order.parts.reduce((sum, item) => {
+          const part = db.parts.find(p => p.id === item.id);
+          return sum + (part ? Number(part.cost || 0) * Number(item.qty || 1) : 0);
+        }, 0);
+        return { order, gross: calc.total - cost };
+      });
+      const lowParts = db.parts.filter(p => Number(p.stock) <= Number(p.min));
+      document.getElementById('reports').innerHTML = `
+        <div class="panel" style="margin-bottom:14px">
+          <div class="panel-head"><h2>Relatórios e exportação</h2><span class="muted">${reportPeriodLabel()}</span></div>
+          <div class="panel-body">
+            <div class="report-period">
+              <div class="field"><label>Data inicial</label><input id="reportStart" type="date" value="${reportFilters.start}"></div>
+              <div class="field"><label>Data final</label><input id="reportEnd" type="date" value="${reportFilters.end}"></div>
+              <div class="field"><label>&nbsp;</label><button class="btn primary" onclick="setReportPeriod()">Aplicar período</button></div>
+              <div class="field"><label>&nbsp;</label><button class="btn" onclick="clearReportPeriod()">Limpar filtro</button></div>
+            </div>
+            <div class="export-grid">
+              <button class="btn" onclick="exportReport('clients')">Clientes</button>
+              <button class="btn" onclick="exportReport('orders')">Ordens de Serviço</button>
+              <button class="btn" onclick="exportReport('parts')">Peças</button>
+              <button class="btn" onclick="exportReport('finance')">Financeiro</button>
+              <button class="btn" onclick="exportReport('manufacturers')">Fabricantes</button>
+              <button class="btn" onclick="exportReport('models')">Modelos</button>
+              <button class="btn" onclick="exportReport('services')">Serviços</button>
+              <button class="btn" onclick="exportReport('stock')">Mov. Estoque</button>
+            </div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><h2>Status das ordens</h2></div>
+            <div class="panel-body bars">
+              ${Object.entries(statusCounts).map(([name, count]) => `<div class="bar-row"><strong>${name}</strong><div class="bar-track"><div class="bar-fill" style="width:${count / max * 100}%"></div></div><span>${count} OS</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Receita por serviço</h2></div>
+            <div class="panel-body bars">
+              ${revenueByService.map(row => `<div class="bar-row"><strong>${escapeHtml(row.name)}</strong><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, row.total / 500 * 100)}%"></div></div><span>${money.format(row.total)}</span></div>`).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px">
+          <div class="panel-head"><h2>Resultado e estoque</h2></div>
+          <div class="panel-body">
+            <div class="grid kpis">
+              ${kpi('Fluxo de caixa', money.format(income - expense), 'Entradas menos saídas')}
+              ${kpi('Resultado mensal', money.format(income - expense), 'DRE simples do período')}
+              ${kpi('Lucro bruto em OS', money.format(orderProfit.reduce((s, r) => s + r.gross, 0)), 'Receita de OS menos custo das peças')}
+              ${kpi('Alertas de estoque', lowParts.length, 'Itens no estoque mínimo')}
+            </div>
+            <table><thead><tr><th>OS</th><th>Cliente</th><th>Total</th><th>Lucro bruto</th></tr></thead><tbody>
+              ${orderProfit.map(row => `<tr><td>#${row.order.number}</td><td>${escapeHtml(clientName(row.order.clientId))}</td><td>${money.format(calcOrder(row.order).total)}</td><td>${money.format(row.gross)}</td></tr>`).join('')}
+            </tbody></table>
+          </div>
+        </div>`;
+    }
+
+    function renderSettings() {
+      if (!db.users.some(user => user.id === selectedUserId)) selectedUserId = db.users[0]?.id || '';
+      const selectedUser = db.users.find(user => user.id === selectedUserId) || db.users[0];
+      document.getElementById('settings').innerHTML = `
+        <div class="panel" style="margin-bottom:14px">
+          <div class="panel-head"><h2>Dados da empresa e marca</h2><button class="btn primary" onclick="saveCompanySettings()">Salvar empresa</button></div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <div class="field"><label>Nome do sistema</label><input id="companySystemName" value="${escapeHtml(db.company.systemName || '')}"></div>
+              <div class="field"><label>Nome fantasia</label><input id="companyTradeName" value="${escapeHtml(db.company.tradeName || '')}"></div>
+              <div class="field"><label>Razão social</label><input id="companyLegalName" value="${escapeHtml(db.company.legalName || '')}"></div>
+              <div class="field"><label>CNPJ/Documento</label><input id="companyDocument" value="${escapeHtml(db.company.document || '')}"></div>
+              <div class="field"><label>Telefone</label><input id="companyPhone" value="${escapeHtml(db.company.phone || '')}"></div>
+              <div class="field"><label>E-mail</label><input id="companyEmail" value="${escapeHtml(db.company.email || '')}"></div>
+              <div class="field"><label>CEP</label><input id="companyZip" value="${escapeHtml(db.company.zip || '')}"></div>
+              <div class="field"><label>Logradouro</label><input id="companyStreet" value="${escapeHtml(db.company.street || '')}"></div>
+              <div class="field"><label>Número</label><input id="companyNumber" value="${escapeHtml(db.company.number || '')}"></div>
+              <div class="field"><label>Bairro</label><input id="companyNeighborhood" value="${escapeHtml(db.company.neighborhood || '')}"></div>
+              <div class="field"><label>Cidade</label><input id="companyCity" value="${escapeHtml(db.company.city || '')}"></div>
+              <div class="field"><label>UF</label><input id="companyState" value="${escapeHtml(db.company.state || '')}"></div>
+              <div class="field"><label>Cor principal</label><input id="companyPrimaryColor" type="color" value="${escapeHtml(db.company.primaryColor || '#f9732f')}"></div>
+              <div class="field"><label>Cor lateral</label><input id="companyDarkColor" type="color" value="${escapeHtml(db.company.darkColor || '#18231f')}"></div>
+              <div class="field"><label>Tema</label><select id="companyTheme"><option value="light" ${db.company.theme !== 'dark' ? 'selected' : ''}>Claro</option><option value="dark" ${db.company.theme === 'dark' ? 'selected' : ''}>Escuro</option></select></div>
+              <div class="field wide"><label>Rodapé da OS</label><textarea id="companyPrintFooter">${escapeHtml(db.company.printFooter || '')}</textarea></div>
+              <div class="field wide"><label>Termo de garantia padrão</label><textarea id="companyDefaultWarrantyTerm" style="min-height:180px">${escapeHtml(db.company.defaultWarrantyTerm || defaultWarrantyTerm)}</textarea></div>
+              <div class="field wide"><label>Logo do sistema e impressão</label><input id="companyLogoFile" type="file" accept="image/*" onchange="readLogoFile(this)"></div>
+              <div class="field wide"><button class="btn" type="button" onclick="useDefaultLogo()">Usar logo Troca Âe</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head"><h2>Usuários</h2><button class="btn primary" onclick="openSimpleModal('users')">+ Usuário</button></div>
+            <div class="panel-body">${usersPermissionTable()}</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Escala de permissões</h2><button class="btn primary" onclick="openSimpleModal('roles')">+ Perfil</button></div>
+            <div class="panel-body">${selectedUser ? permissionMatrixForUser(selectedUser) : '<div class="empty">Cadastre um usuário para configurar permissões.</div>'}</div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px">
+          <div class="panel-head"><h2>Auditoria</h2><button class="btn" onclick="clearAudit()">Limpar auditoria</button></div>
+          <div class="panel-body">
+            <table><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead><tbody>
+              ${(db.audit || []).map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.user)}</td><td>${escapeHtml(row.action)}</td><td>${escapeHtml(row.detail)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nenhum registro de auditoria.</td></tr>'}
+            </tbody></table>
+          </div>
+        </div>`;
+    }
+
+    function usersPermissionTable() {
+      return `<table><thead><tr><th>Usuário</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>
+        ${db.users.map(user => `<tr class="${user.id === selectedUserId ? 'selected-row' : ''}" onclick="selectUserForPermissions('${user.id}')">
+          <td><strong>${escapeHtml(user.name)}</strong><br><span class="muted">${escapeHtml(user.email)}</span></td>
+          <td>${escapeHtml(roleName(user.roleId))}</td>
+          <td>${badge(user.status)}</td>
+          <td><div class="actions">
+            <button class="btn" onclick="event.stopPropagation(); selectUserForPermissions('${user.id}')">Ver permissões</button>
+            <button class="icon-btn" title="Editar" onclick="event.stopPropagation(); openSimpleModal('users','${user.id}')">✎</button>
+            <button class="icon-btn" title="Excluir" onclick="event.stopPropagation(); removeItem('users','${user.id}')">×</button>
+          </div></td>
+        </tr>`).join('') || '<tr><td colspan="4" class="muted">Nenhum usuário cadastrado.</td></tr>'}
+      </tbody></table>`;
+    }
+
+    function selectUserForPermissions(userId) {
+      selectedUserId = userId;
+      renderSettings();
+    }
+
+    function permissionMatrixForUser(user) {
+      const role = db.roles.find(r => r.id === user.roleId);
+      if (!role) return '<div class="empty">Perfil do usuário não encontrado.</div>';
+      return `<div style="margin-bottom:12px">
+        <strong>${escapeHtml(user.name)}</strong><br>
+        <span class="muted">${escapeHtml(user.email)} · ${escapeHtml(role.name)} · nível ${role.level}</span>
+      </div>${permissionMatrix(role)}`;
+    }
+
+    function permissionModules() {
+      return [
+        ['clientes', 'Clientes', ['ver','criar','editar','excluir']],
+        ['os', 'Ordens de serviço', ['ver','criar','editar','aprovar','finalizar','imprimir','excluir']],
+        ['estoque', 'Peças e estoque', ['ver','criar','editar','movimentar','excluir']],
+        ['financeiro', 'Financeiro', ['ver','criar','editar','pagar','excluir']],
+        ['relatorios', 'Relatórios', ['ver','exportar']],
+        ['fabricantes', 'Fabricantes e modelos', ['ver','criar','editar','excluir']],
+        ['configuracoes', 'Configurações', ['ver','editar']],
+        ['auditoria', 'Auditoria', ['ver','excluir']]
+      ];
+    }
+
+    function permissionLabel(action) {
+      return { ver: 'Ver', criar: 'Criar', editar: 'Editar', excluir: 'Excluir', aprovar: 'Aprovar', finalizar: 'Finalizar', imprimir: 'Imprimir', movimentar: 'Movimentar', pagar: 'Pagar', exportar: 'Exportar' }[action] || action;
+    }
+
+    function roleHasPermission(role, moduleKey, action) {
+      role.permissionMatrix ||= {};
+      if (role.permissionMatrix[moduleKey]?.includes(action)) return true;
+      if (!Object.keys(role.permissionMatrix).length && (role.permissions || []).includes(moduleKey)) return ['ver','criar','editar'].includes(action);
+      return false;
+    }
+
+    function permissionMatrix(selectedRole = null) {
+      const modules = permissionModules();
+      const roles = selectedRole ? [selectedRole] : db.roles;
+      return `<div class="permission-grid">${roles.map(role => `
+        <div style="margin-bottom:18px">
+          <div class="panel-head" style="padding-left:0;padding-right:0"><h2>${escapeHtml(role.name)} <span class="muted">nível ${role.level}</span></h2><div class="actions"><button class="icon-btn" title="Editar" onclick="openSimpleModal('roles','${role.id}')">✎</button><button class="icon-btn" title="Excluir" onclick="removeItem('roles','${role.id}')">×</button></div></div>
+          <table><thead><tr><th>Módulo</th>${['ver','criar','editar','aprovar','finalizar','imprimir','movimentar','pagar','exportar','excluir'].map(action => `<th>${permissionLabel(action)}</th>`).join('')}</tr></thead><tbody>
+            ${modules.map(([moduleKey, label, actions]) => `<tr><td><strong>${label}</strong></td>${['ver','criar','editar','aprovar','finalizar','imprimir','movimentar','pagar','exportar','excluir'].map(action => `<td>${actions.includes(action) ? `<input style="width:auto;min-height:auto" type="checkbox" ${roleHasPermission(role, moduleKey, action) ? 'checked' : ''} onchange="togglePermission('${role.id}','${moduleKey}','${action}',this.checked)">` : '<span class="muted">-</span>'}</td>`).join('')}</tr>`).join('')}
+          </tbody></table>
+        </div>`).join('')}</div>`;
+    }
+
+    function togglePermission(roleId, moduleKey, action, enabled) {
+      const role = db.roles.find(r => r.id === roleId);
+      if (!role) return;
+      role.permissionMatrix ||= {};
+      role.permissionMatrix[moduleKey] ||= [];
+      if (enabled && !role.permissionMatrix[moduleKey].includes(action)) role.permissionMatrix[moduleKey].push(action);
+      if (!enabled) role.permissionMatrix[moduleKey] = role.permissionMatrix[moduleKey].filter(item => item !== action);
+      audit('Permissão alterada', `${role.name}: ${moduleKey}.${action} ${enabled ? 'ativada' : 'removida'}`);
+      save();
+    }
+
+    function clearAudit() {
+      if (!confirm('Limpar o histórico de auditoria?')) return;
+      db.audit = [];
+      save();
+    }
+
+    function saveCompanySettings() {
+      db.company = {
+        ...db.company,
+        systemName: document.getElementById('companySystemName').value,
+        tradeName: document.getElementById('companyTradeName').value,
+        legalName: document.getElementById('companyLegalName').value,
+        document: document.getElementById('companyDocument').value,
+        phone: document.getElementById('companyPhone').value,
+        email: document.getElementById('companyEmail').value,
+        zip: document.getElementById('companyZip').value,
+        street: document.getElementById('companyStreet').value,
+        number: document.getElementById('companyNumber').value,
+        neighborhood: document.getElementById('companyNeighborhood').value,
+        city: document.getElementById('companyCity').value,
+        state: document.getElementById('companyState').value,
+        primaryColor: document.getElementById('companyPrimaryColor').value,
+        darkColor: document.getElementById('companyDarkColor').value,
+        theme: document.getElementById('companyTheme').value,
+        printFooter: document.getElementById('companyPrintFooter').value,
+        defaultWarrantyTerm: document.getElementById('companyDefaultWarrantyTerm').value
+      };
+      audit('Dados da empresa atualizados', db.company.tradeName || db.company.systemName);
+      save();
+    }
+
+    function useDefaultLogo() {
+      db.company.logo = 'troca-ae-logo.jpg';
+      db.company.primaryColor = '#f9732f';
+      audit('Logo padrão aplicada', 'Troca Âe');
+      save();
+    }
+
+    function openSimpleModal(section, id = '') {
+      const item = db[section].find(x => x.id === id) || {};
+      const configs = {
+        clients: [['name','Nome'],['phone','Telefone'],['email','E-mail'],['document','CPF/CNPJ'],['zip','CEP','zip'],['street','Logradouro'],['number','Número da residência'],['neighborhood','Bairro'],['city','Cidade'],['state','UF'],['complement','Complemento'],['notes','Observações','textarea']],
+        manufacturers: [['name','Nome do fabricante'],['supportPhone','Telefone de suporte'],['site','Site'],['notes','Observações','textarea']],
+        productModels: [['manufacturerId','Fabricante','manufacturer'],['name','Modelo'],['category','Categoria'],['year','Ano','number'],['notes','Observações','textarea']],
+        suppliers: [['name','Nome'],['phone','Telefone'],['email','E-mail'],['document','CNPJ/Documento'],['notes','Observações','textarea']],
+        parts: [['sku','SKU'],['name','Nome'],['category','Categoria'],['manufacturerId','Fabricante','manufacturer'],['compatibleModels','Modelos compatíveis','models'],['cost','Custo','number'],['price','Preço','number'],['stock','Estoque','number'],['min','Mínimo','number'],['supplier','Fornecedor']],
+        services: [['name','Nome'],['category','Categoria'],['labor','Mão de obra','number'],['warranty','Garantia em dias','number'],['duration','Duração']],
+        users: [['name','Nome'],['email','E-mail'],['roleId','Perfil','role'],['status','Status','status']],
+        roles: [['name','Nome do perfil'],['level','Nível de acesso','number']]
+      };
+      openModal(id ? 'Editar registro' : 'Novo registro', formHtml(configs[section], item), () => {
+        const data = readForm(configs[section]);
+        if (section === 'roles') data.permissions = item.permissions || [];
+        if (id) Object.assign(item, data);
+        else db[section].push({ id: uid(section.slice(0, 3)), ...data });
+        audit(id ? 'Registro editado' : 'Registro criado', `${section}: ${data.name || data.sku || data.email || id}`);
+        save();
+      });
+    }
+
+    window.openSimpleModal = openSimpleModal;
+
+    function formHtml(fields, item) {
+      return `<div class="form-grid">${fields.map(([key, label, type]) => {
+        const value = escapeHtml(item[key] ?? '');
+        if (type === 'textarea') return `<div class="field wide"><label>${label}</label><textarea name="${key}">${value}</textarea></div>`;
+        if (type === 'client') return `<div class="field"><label>${label}</label><select name="${key}">${db.clients.map(c => `<option value="${c.id}" ${item[key] === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></div>`;
+        if (type === 'manufacturer') return `<div class="field"><label>${label}</label><select name="${key}"><option value="">Selecione</option>${db.manufacturers.map(m => `<option value="${m.id}" ${item[key] === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}</select></div>`;
+        if (type === 'model') return `<div class="field"><label>${label}</label><select name="${key}"><option value="">Selecione</option>${db.productModels.map(m => `<option value="${m.id}" ${item[key] === m.id ? 'selected' : ''}>${escapeHtml(manufacturerName(m.manufacturerId))} - ${escapeHtml(m.name)}</option>`).join('')}</select></div>`;
+        if (type === 'models') {
+          const selected = Array.isArray(item[key]) ? item[key] : [];
+          return `<div class="field wide"><label>${label}</label><div class="grid">${db.productModels.map(m => `<label style="text-transform:none;font-weight:500;color:var(--ink)"><input style="width:auto;min-height:auto" type="checkbox" name="${key}" value="${m.id}" ${selected.includes(m.id) ? 'checked' : ''}> ${escapeHtml(manufacturerName(m.manufacturerId))} - ${escapeHtml(m.name)}</label>`).join('')}</div></div>`;
+        }
+        if (type === 'role') return `<div class="field"><label>${label}</label><select name="${key}">${db.roles.map(r => `<option value="${r.id}" ${item[key] === r.id ? 'selected' : ''}>${escapeHtml(r.name)} - nível ${r.level}</option>`).join('')}</select></div>`;
+        if (type === 'status') return `<div class="field"><label>${label}</label><select name="${key}">${['Ativo','Inativo'].map(s => `<option ${item[key] === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
+        if (type === 'zip') return `<div class="field"><label>${label}</label><input name="${key}" inputmode="numeric" value="${value}" onblur="lookupCep(this.value)"></div>`;
+        return `<div class="field"><label>${label}</label><input name="${key}" type="${type || 'text'}" value="${value}"></div>`;
+      }).join('')}</div>`;
+    }
+
+    function readForm(fields) {
+      const form = new FormData(document.getElementById('modalForm'));
+      const data = {};
+      fields.forEach(([key,, type]) => {
+        if (type === 'number') data[key] = Number(form.get(key) || 0);
+        else if (type === 'models') data[key] = form.getAll(key);
+        else data[key] = form.get(key);
+      });
+      return data;
+    }
+
+    async function lookupCep(value) {
+      const cep = String(value || '').replace(/\D/g, '');
+      if (cep.length !== 8) return;
+      const zipInput = document.querySelector('[name="zip"]');
+      zipInput.value = cep.replace(/(\d{5})(\d{3})/, '$1-$2');
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
+        if (data.erro) {
+          alert('CEP não encontrado.');
+          return;
+        }
+        document.querySelector('[name="street"]').value = data.logradouro || '';
+        document.querySelector('[name="neighborhood"]').value = data.bairro || '';
+        document.querySelector('[name="city"]').value = data.localidade || '';
+        document.querySelector('[name="state"]').value = data.uf || '';
+        const complement = document.querySelector('[name="complement"]');
+        if (complement && data.complemento && !complement.value) complement.value = data.complemento;
+        document.querySelector('[name="number"]')?.focus();
+      } catch (error) {
+        alert('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
+      }
+    }
+
+    function openOrderModal(id = '') {
+      const item = db.orders.find(x => x.id === id) || { status: 'Aberta', approvalStatus: 'Pendente', priority: 'Normal', opened: today(), due: today(), parts: [], services: [], discount: 0, paid: 0 };
+      const initialParts = partsForOrder(item.deviceManufacturerId, item.deviceModelId);
+      const warrantyText = item.warrantyTerm || (!id ? (db.company.defaultWarrantyTerm || defaultWarrantyTerm) : '');
+      const useDefaultWarranty = !id && !item.warrantyTerm;
+      pendingOrderPhotos = structuredClone(item.photoFiles || []);
+      openModal(id ? `Editar OS ${item.number}` : 'Nova ordem de serviço', `
+        <div class="form-grid">
+          <div class="field"><label>Cliente</label><select name="clientId">${db.clients.map(c => `<option value="${c.id}" ${item.clientId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select></div>
+          <div class="field"><label>Fabricante cadastrado</label><select name="deviceManufacturerId" onchange="syncOrderModels()"><option value="">Selecione</option>${db.manufacturers.map(m => `<option value="${m.id}" ${item.deviceManufacturerId === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('')}</select></div>
+          <div class="field"><label>Modelo cadastrado</label><select name="deviceModelId" onchange="syncOrderParts()">${orderModelOptions(item.deviceManufacturerId, item.deviceModelId)}</select></div>
+          <div class="field"><label>Marca do smartphone</label><input name="deviceBrand" value="${escapeHtml(item.deviceBrand || '')}"></div>
+          <div class="field"><label>Modelo</label><input name="deviceModel" value="${escapeHtml(item.deviceModel || '')}"></div>
+          <div class="field"><label>IMEI / Serial</label><input name="deviceImei" value="${escapeHtml(item.deviceImei || '')}"></div>
+          <div class="field"><label>Cor</label><input name="deviceColor" value="${escapeHtml(item.deviceColor || '')}"></div>
+          <div class="field"><label>Senha / padrão</label><input name="devicePassword" value="${escapeHtml(item.devicePassword || '')}"></div>
+          <div class="field"><label>Status</label><select name="status">${osStatuses.map(s => `<option ${item.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Aprovação</label><select name="approvalStatus">${['Pendente','Aprovada','Reprovada'].map(s => `<option ${item.approvalStatus === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Prioridade</label><select name="priority">${['Normal','Alta','Urgente'].map(s => `<option ${item.priority === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Abertura</label><input name="opened" type="date" value="${item.opened}"></div>
+          <div class="field"><label>Previsão</label><input name="due" type="date" value="${item.due}"></div>
+          <div class="field"><label>Técnico</label><input name="technician" value="${escapeHtml(item.technician || '')}"></div>
+          <div class="field"><label>Desconto</label><input name="discount" type="number" value="${item.discount || 0}"></div>
+          <div class="field wide"><label>Condição de entrada do aparelho</label><textarea name="deviceCondition">${escapeHtml(item.deviceCondition || '')}</textarea></div>
+          <div class="field wide"><label>Defeito relatado</label><textarea name="defect">${escapeHtml(item.defect || '')}</textarea></div>
+          <div class="field wide"><label>Diagnóstico / orçamento</label><textarea name="diagnosis">${escapeHtml(item.diagnosis || '')}</textarea></div>
+          <div class="field wide"><label>Solução / laudo</label><textarea name="solution">${escapeHtml(item.solution || '')}</textarea></div>
+          <div class="field wide"><label>Fotos / anexos</label><textarea name="photos" placeholder="Informe nomes dos arquivos, links ou observações das fotos de entrada">${escapeHtml(item.photos || '')}</textarea></div>
+          <div class="field wide"><label>Arquivos de fotos da OS</label>
+            <div class="photo-manager">
+              <div class="actions">
+                <label class="btn primary" for="orderPhotoUpload">Upload de fotos</label>
+                <button class="btn" type="button" onclick="downloadAllOrderPhotos()">Baixar todas</button>
+              </div>
+              <input id="orderPhotoUpload" type="file" accept="image/*" multiple style="display:none" onchange="uploadOrderPhotos(this.files)">
+              <div id="orderPhotoList">${orderPhotoList()}</div>
+            </div>
+          </div>
+          <div class="field wide"><label>Termo de garantia</label><label style="text-transform:none;font-weight:600;color:var(--ink)"><input style="width:auto;min-height:auto" type="checkbox" name="useDefaultWarranty" ${useDefaultWarranty ? 'checked' : ''} onchange="applyDefaultWarrantyTerm(this.checked)"> Usar termo padrão configurado</label><textarea name="warrantyTerm">${escapeHtml(warrantyText)}</textarea></div>
+          <div class="field wide"><label>Termo de entrega</label><textarea name="deliveryTerm">${escapeHtml(item.deliveryTerm || '')}</textarea></div>
+          <div class="field wide"><label>Pós-venda / acompanhamento</label><textarea name="followUp">${escapeHtml(item.followUp || '')}</textarea></div>
+          <div class="field wide"><label>Peças usadas</label><div id="orderPartsBox">${orderPartsChecks(initialParts, item.parts.map(p => p.id))}</div></div>
+          <div class="field wide"><label>Serviços</label>${checks('services', db.services, item.services, s => `${s.name} - ${money.format(s.labor)}`)}</div>
+        </div>`, () => {
+          const form = new FormData(document.getElementById('modalForm'));
+          const selectedParts = form.getAll('parts').map(partId => ({ id: partId, qty: 1 }));
+          const selectedServices = form.getAll('services');
+          const data = {
+            clientId: form.get('clientId'),
+            deviceManufacturerId: form.get('deviceManufacturerId'),
+            deviceModelId: form.get('deviceModelId'),
+            deviceBrand: form.get('deviceBrand'),
+            deviceModel: form.get('deviceModel'),
+            deviceImei: form.get('deviceImei'),
+            deviceColor: form.get('deviceColor'),
+            devicePassword: form.get('devicePassword'),
+            deviceCondition: form.get('deviceCondition'),
+            status: form.get('status'),
+            approvalStatus: form.get('approvalStatus'),
+            priority: form.get('priority'), opened: form.get('opened'), due: form.get('due'),
+            technician: form.get('technician'), defect: form.get('defect'), diagnosis: form.get('diagnosis'), solution: form.get('solution'),
+            photos: form.get('photos'), photoFiles: structuredClone(pendingOrderPhotos), warrantyTerm: form.get('warrantyTerm'), deliveryTerm: form.get('deliveryTerm'), followUp: form.get('followUp'),
+            parts: selectedParts, services: selectedServices, discount: Number(form.get('discount') || 0),
+            paid: Number(item.paid || 0)
+          };
+          if (id) {
+            Object.assign(item, data);
+            audit('OS editada', `OS ${item.number}`);
+          } else {
+            const number = nextNumber();
+            db.orders.push({ id: uid('os'), number, ...data });
+            audit('OS criada', `OS ${number}`);
+          }
+          save();
+        });
+    }
+
+    function checks(name, rows, selected, labeler) {
+      return `<div class="grid">${rows.map(row => `<label style="text-transform:none;font-weight:500;color:var(--ink)"><input style="width:auto;min-height:auto" type="checkbox" name="${name}" value="${row.id}" ${selected.includes(row.id) ? 'checked' : ''}> ${escapeHtml(labeler(row))}</label>`).join('')}</div>`;
+    }
+
+    function orderModelOptions(manufacturerId, selectedModelId = '') {
+      const models = db.productModels.filter(model => !manufacturerId || model.manufacturerId === manufacturerId);
+      return `<option value="">Selecione</option>${models.map(model => `<option value="${model.id}" ${selectedModelId === model.id ? 'selected' : ''}>${escapeHtml(manufacturerName(model.manufacturerId))} - ${escapeHtml(model.name)}</option>`).join('')}`;
+    }
+
+    function partsForOrder(manufacturerId, modelId) {
+      if (modelId) {
+        const selectedModel = db.productModels.find(model => model.id === modelId);
+        const sameModelIds = db.productModels
+          .filter(model => selectedModel && model.manufacturerId === selectedModel.manufacturerId && model.name === selectedModel.name)
+          .map(model => model.id);
+        return db.parts.filter(part => (part.compatibleModels || []).some(id => sameModelIds.includes(id)));
+      }
+      if (manufacturerId) return db.parts.filter(part => part.manufacturerId === manufacturerId);
+      return db.parts.slice(0, 80);
+    }
+
+    function orderPartsChecks(rows, selected) {
+      if (!rows.length) return '<div class="empty">Selecione fabricante e modelo para listar as peças compatíveis.</div>';
+      return checks('parts', rows, selected, part => `${part.name} - ${manufacturerName(part.manufacturerId)} - ${money.format(part.price)}`);
+    }
+
+    function syncOrderModels() {
+      const manufacturerId = document.querySelector('[name="deviceManufacturerId"]')?.value || '';
+      const modelSelect = document.querySelector('[name="deviceModelId"]');
+      if (modelSelect) modelSelect.innerHTML = orderModelOptions(manufacturerId);
+      syncOrderParts();
+    }
+
+    function syncOrderParts() {
+      const manufacturerId = document.querySelector('[name="deviceManufacturerId"]')?.value || '';
+      const modelId = document.querySelector('[name="deviceModelId"]')?.value || '';
+      const selected = Array.from(document.querySelectorAll('#orderPartsBox input[name="parts"]:checked')).map(input => input.value);
+      const box = document.getElementById('orderPartsBox');
+      if (box) box.innerHTML = orderPartsChecks(partsForOrder(manufacturerId, modelId), selected);
+    }
+
+    function applyDefaultWarrantyTerm(enabled) {
+      const field = document.querySelector('[name="warrantyTerm"]');
+      if (!field || !enabled) return;
+      field.value = db.company.defaultWarrantyTerm || defaultWarrantyTerm;
+    }
+
+    function orderPhotoList() {
+      if (!pendingOrderPhotos.length) return '<div class="empty">Nenhuma foto cadastrada nesta OS.</div>';
+      return `<div class="photo-list">${pendingOrderPhotos.map((photo, index) => `
+        <div class="photo-item">
+          <img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.name)}">
+          <div><strong>${escapeHtml(photo.name)}</strong><br><span class="muted">${escapeHtml(photo.createdAt || '')}</span></div>
+          <div class="actions">
+            <button class="btn" type="button" onclick="downloadOrderPhoto(${index})">Download</button>
+            <button class="btn danger" type="button" onclick="removeOrderPhoto(${index})">Remover</button>
+          </div>
+        </div>`).join('')}</div>`;
+    }
+
+    function refreshOrderPhotoList() {
+      const box = document.getElementById('orderPhotoList');
+      if (box) box.innerHTML = orderPhotoList();
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadOrderPhotos(files) {
+      const selected = Array.from(files || []).filter(file => file.type.startsWith('image/'));
+      if (!selected.length) return;
+      for (const file of selected) {
+        const dataUrl = await readFileAsDataUrl(file);
+        pendingOrderPhotos.push({
+          id: uid('foto'),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataUrl,
+          createdAt: new Date().toLocaleString('pt-BR')
+        });
+      }
+      refreshOrderPhotoList();
+      const input = document.getElementById('orderPhotoUpload');
+      if (input) input.value = '';
+    }
+
+    function triggerDownload(dataUrl, name) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = name || `foto-os-${today()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function downloadOrderPhoto(index) {
+      const photo = pendingOrderPhotos[index];
+      if (!photo) return;
+      triggerDownload(photo.dataUrl, photo.name);
+    }
+
+    function downloadAllOrderPhotos() {
+      if (!pendingOrderPhotos.length) {
+        alert('Nenhuma foto cadastrada nesta OS.');
+        return;
+      }
+      pendingOrderPhotos.forEach((photo, index) => {
+        setTimeout(() => triggerDownload(photo.dataUrl, photo.name), index * 180);
+      });
+    }
+
+    function removeOrderPhoto(index) {
+      pendingOrderPhotos.splice(index, 1);
+      refreshOrderPhotoList();
+    }
+
+    function downloadOrderPhotosFromSaved(orderId) {
+      const order = db.orders.find(o => o.id === orderId);
+      const photos = order?.photoFiles || [];
+      if (!photos.length) {
+        alert('Nenhuma foto cadastrada nesta OS.');
+        return;
+      }
+      photos.forEach((photo, index) => setTimeout(() => triggerDownload(photo.dataUrl, photo.name), index * 180));
+    }
+
+    window.uploadOrderPhotos = uploadOrderPhotos;
+    window.downloadOrderPhoto = downloadOrderPhoto;
+    window.downloadAllOrderPhotos = downloadAllOrderPhotos;
+    window.removeOrderPhoto = removeOrderPhoto;
+    window.downloadOrderPhotosFromSaved = downloadOrderPhotosFromSaved;
+
+    function nextNumber() {
+      return Math.max(1000, ...db.orders.map(o => Number(o.number))) + 1;
+    }
+
+    function openFinanceModal() {
+      openModal('Novo lançamento financeiro', `
+        <div class="form-grid">
+          <div class="field"><label>Tipo</label><select name="type"><option>Entrada</option><option>Saída</option></select></div>
+          <div class="field"><label>Data</label><input name="date" type="date" value="${today()}"></div>
+          <div class="field"><label>Vencimento</label><input name="dueDate" type="date" value="${today()}"></div>
+          <div class="field"><label>Categoria</label><input name="category" value="Operação"></div>
+          <div class="field"><label>Status</label><select name="status"><option>Recebido</option><option>Pago</option><option>Pendente</option></select></div>
+          <div class="field"><label>Forma de pagamento</label><select name="paymentMethod">${paymentMethods.map(m => `<option>${m}</option>`).join('')}</select></div>
+          <div class="field wide"><label>Descrição</label><input name="description"></div>
+          <div class="field"><label>Valor</label><input name="amount" type="number" value="0"></div>
+        </div>`, () => {
+          const form = new FormData(document.getElementById('modalForm'));
+          db.finance.push({ id: uid('fin'), type: form.get('type'), date: form.get('date'), dueDate: form.get('dueDate'), category: form.get('category'), description: form.get('description'), amount: Number(form.get('amount') || 0), status: form.get('status'), paymentMethod: form.get('paymentMethod'), orderId: '' });
+          audit('Lançamento financeiro criado', `${form.get('description')} - ${money.format(Number(form.get('amount') || 0))}`);
+          save();
+        });
+    }
+
+    function openStockEntryModal() {
+      openModal('Entrada de compra no estoque', `
+        <div class="form-grid">
+          <div class="field"><label>Data</label><input name="date" type="date" value="${today()}"></div>
+          <div class="field"><label>Peça</label><select name="partId">${db.parts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select></div>
+          <div class="field"><label>Fornecedor</label><select name="supplierId"><option value="">Selecione</option>${db.suppliers.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select></div>
+          <div class="field"><label>Quantidade</label><input name="qty" type="number" value="1"></div>
+          <div class="field"><label>Custo unitário</label><input name="unitCost" type="number" value="0"></div>
+          <div class="field wide"><label>Motivo</label><input name="reason" value="Entrada de compra"></div>
+        </div>`, () => {
+          const form = new FormData(document.getElementById('modalForm'));
+          const part = db.parts.find(p => p.id === form.get('partId'));
+          const qty = Number(form.get('qty') || 0);
+          const unitCost = Number(form.get('unitCost') || 0);
+          if (part && qty > 0) {
+            const currentStock = Number(part.stock || 0);
+            const currentCost = Number(part.cost || 0);
+            part.cost = currentStock + qty > 0 ? ((currentStock * currentCost) + (qty * unitCost)) / (currentStock + qty) : unitCost;
+            part.stock = currentStock + qty;
+            db.stockMovements.unshift({ id: uid('mov'), date: form.get('date'), partId: part.id, type: 'Entrada', qty, unitCost, reason: form.get('reason'), supplierId: form.get('supplierId') });
+            audit('Entrada de estoque', `${part.name}: ${qty} un. de ${supplierName(form.get('supplierId'))}`);
+          }
+          save();
+        });
+    }
+
+    function markFinancePaid(id) {
+      const item = db.finance.find(f => f.id === id);
+      if (!item) return;
+      item.status = item.type === 'Entrada' ? 'Recebido' : 'Pago';
+      item.date = today();
+      audit('Conta baixada', `${item.description}: ${money.format(item.amount)}`);
+      save();
+    }
+
+    function setApproval(id, status) {
+      const order = db.orders.find(o => o.id === id);
+      if (!order) return;
+      order.approvalStatus = status;
+      order.status = status === 'Aprovada' ? 'Aprovada' : 'Cancelada';
+      audit(status === 'Aprovada' ? 'Orçamento aprovado' : 'Orçamento reprovado', `OS ${order.number}`);
+      save();
+    }
+
+    function showOrderTerm(id) {
+      const order = db.orders.find(o => o.id === id);
+      if (!order) return;
+      const calc = calcOrder(order);
+      openModal(`Termo da OS ${order.number}`, `
+        <div class="grid">
+          <p><strong>Cliente:</strong> ${escapeHtml(clientName(order.clientId))}</p>
+          <p><strong>Aparelho:</strong> ${escapeHtml(deviceName(order))} - IMEI/Serial ${escapeHtml(order.deviceImei || '')}</p>
+          <p><strong>Defeito:</strong> ${escapeHtml(order.defect || '')}</p>
+          <p><strong>Laudo/Solução:</strong> ${escapeHtml(order.solution || order.diagnosis || '')}</p>
+          <p><strong>Garantia:</strong> ${escapeHtml(order.warrantyTerm || 'Garantia conforme serviço executado.')}</p>
+          <p><strong>Entrega:</strong> ${escapeHtml(order.deliveryTerm || 'Aparelho entregue ao cliente após testes.')}</p>
+          <p><strong>Total:</strong> ${money.format(calc.total)} | <strong>Saldo:</strong> ${money.format(calc.balance)}</p>
+        </div>`, () => {});
+    }
+
+    function printOrder(id) {
+      const order = db.orders.find(o => o.id === id);
+      if (!order) return;
+      const client = db.clients.find(c => c.id === order.clientId) || {};
+      const company = db.company || seed.company;
+      const companyAddress = [company.street, company.number, company.neighborhood, company.city, company.state, company.zip].filter(Boolean).map(escapeHtml).join(' - ');
+      const calc = calcOrder(order);
+      const parts = order.parts.map(item => {
+        const part = db.parts.find(p => p.id === item.id);
+        return part ? `<tr><td>${escapeHtml(part.name)}</td><td>${item.qty || 1}</td><td>${money.format(part.price)}</td></tr>` : '';
+      }).join('');
+      const services = order.services.map(id => {
+        const service = db.services.find(s => s.id === id);
+        return service ? `<tr><td>${escapeHtml(service.name)}</td><td>${escapeHtml(service.duration || '')}</td><td>${money.format(service.labor)}</td></tr>` : '';
+      }).join('');
+      const html = `
+        <!doctype html><html><head><meta charset="utf-8"><title>OS ${order.number}</title>
+        <style>
+          @page{size:A4;margin:7mm}
+          *{box-sizing:border-box}
+          body{font-family:Arial,sans-serif;color:#1d2522;margin:0;background:#f6f7f9;font-size:10.5px;line-height:1.22}
+          .page{background:white;margin:10px auto;padding:10px;max-width:794px;border-top:5px solid ${escapeHtml(company.primaryColor || '#f9732f')}}
+          h1{font-size:18px;margin:0 0 3px} h2{font-size:11.5px;margin:7px 0 4px;border-bottom:1.5px solid ${escapeHtml(company.primaryColor || '#f9732f')};padding-bottom:3px}
+          p{margin:3px 0;white-space:pre-line}.top{display:grid;grid-template-columns:1fr 190px;gap:10px}.company{display:flex;gap:10px;align-items:flex-start}.logo{width:58px;max-height:58px;object-fit:contain}.box{border:1px solid #ddd;padding:6px;border-radius:6px;background:#fafafa}
+          .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.compact{display:grid;gap:3px}
+          table{width:100%;border-collapse:collapse;margin-top:3px}td,th{border:1px solid #e1e4e8;padding:4px;text-align:left;font-size:10px;vertical-align:top}th{background:#f7f7f7}
+          .muted{color:#666}.total{font-size:12px;font-weight:bold;text-align:right;margin-top:6px;background:#fff4ed;padding:7px;border-radius:6px}.warranty{font-size:9.2px;line-height:1.16}.sign{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:18px}.line{border-top:1px solid #333;text-align:center;padding-top:5px}
+          @media print{button{display:none}.page{margin:0;padding:0;border-top-width:4px}body{background:white}}
+        </style></head><body><div class="page">
+        <div class="top">
+          <div class="company">
+            ${company.logo ? `<img class="logo" src="${escapeHtml(company.logo)}" alt="Logo">` : ''}
+            <div><h1>Ordem de Serviço #${order.number}</h1><div class="muted"><strong>${escapeHtml(company.tradeName || company.systemName || 'Troca Âe SIS PRO')}</strong><br>${escapeHtml(company.legalName || '')}<br>${escapeHtml(company.document || '')} ${escapeHtml(company.phone || '')}<br>${escapeHtml(company.email || '')}<br>${companyAddress}</div></div>
+          </div>
+          <div class="box"><strong>Status:</strong> ${escapeHtml(order.status)}<br><strong>Aprovação:</strong> ${escapeHtml(order.approvalStatus || '')}<br><strong>Prioridade:</strong> ${escapeHtml(order.priority || '')}<br><strong>Abertura:</strong> ${order.opened}<br><strong>Previsão:</strong> ${order.due}<br><strong>Técnico:</strong> ${escapeHtml(order.technician || '')}</div>
+        </div>
+        <div class="grid2">
+          <div><h2>Cliente</h2><p><strong>${escapeHtml(client.name || '')}</strong><br>${escapeHtml(client.phone || '')} | ${escapeHtml(client.email || '')}<br>${escapeHtml(client.document || '')}<br>${[client.street, client.number, client.neighborhood, client.city, client.state, client.zip].filter(Boolean).map(escapeHtml).join(' - ')}</p></div>
+          <div><h2>Aparelho</h2><p><strong>${escapeHtml(deviceName(order))}</strong><br>IMEI/Serial: ${escapeHtml(order.deviceImei || '')}<br>Cor: ${escapeHtml(order.deviceColor || '')} | Senha/padrão: ${escapeHtml(order.devicePassword || '')}<br>Entrada: ${escapeHtml(order.deviceCondition || '')}</p></div>
+        </div>
+        <h2>Atendimento</h2>
+        <div class="grid3 compact">
+          <p><strong>Defeito:</strong><br>${escapeHtml(order.defect || '')}</p>
+          <p><strong>Diagnóstico/Orçamento:</strong><br>${escapeHtml(order.diagnosis || '')}</p>
+          <p><strong>Laudo/Solução:</strong><br>${escapeHtml(order.solution || '')}</p>
+        </div>
+        <div class="grid2">
+          <div><h2>Peças</h2><table><thead><tr><th>Peça</th><th>Qtd.</th><th>Valor</th></tr></thead><tbody>${parts || '<tr><td colspan="3">Sem peças.</td></tr>'}</tbody></table></div>
+          <div><h2>Serviços</h2><table><thead><tr><th>Serviço</th><th>Prazo</th><th>Valor</th></tr></thead><tbody>${services || '<tr><td colspan="3">Sem serviços.</td></tr>'}</tbody></table></div>
+        </div>
+        <div class="total">Total: ${money.format(calc.total)} | Desconto: ${money.format(order.discount || 0)} | Pago: ${money.format(order.paid || 0)} | Saldo: ${money.format(calc.balance)}</div>
+        <div class="grid2">
+          <p><strong>Fotos/anexos:</strong> ${escapeHtml(order.photos || 'Não informado.')} ${(order.photoFiles || []).length ? `(${(order.photoFiles || []).length} foto(s) cadastrada(s))` : ''}</p>
+          <p><strong>Pós-venda:</strong> ${escapeHtml(order.followUp || 'Não informado.')}</p>
+        </div>
+        <h2>Garantia e entrega</h2>
+        <p class="warranty">${escapeHtml(order.warrantyTerm || company.defaultWarrantyTerm || 'Garantia conforme serviço executado.')}</p>
+        <p>${escapeHtml(order.deliveryTerm || 'Aparelho recebido/entregue conforme condições registradas nesta OS.')}</p>
+        <p class="muted">${escapeHtml(company.printFooter || '')}</p>
+        <div class="sign"><div class="line">Cliente</div><div class="line">Responsável técnico</div></div>
+        <button onclick="window.print()">Imprimir</button>
+        </div></body></html>`;
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('O navegador bloqueou a janela de impressão.');
+        return;
+      }
+      printWindow.document.write(html);
+      printWindow.document.close();
+      audit('Impressão de OS', `OS ${order.number}`);
+      save();
+    }
+
+    function openModal(title, body, onSave) {
+      const modal = document.getElementById('modal');
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').innerHTML = body;
+      document.getElementById('modalForm').onsubmit = async event => {
+        if (event.submitter?.value === 'cancel') {
+          event.preventDefault();
+          closeModal();
+          return;
+        }
+        event.preventDefault();
+        await onSave();
+        closeModal();
+      };
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.setAttribute('open', '');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('modal');
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    }
+
+    function removeItem(section, id) {
+      if (!confirm('Excluir este registro?')) return;
+      const item = db[section].find(x => x.id === id);
+      db[section] = db[section].filter(x => x.id !== id);
+      audit('Registro excluído', `${section}: ${item?.name || item?.sku || item?.email || id}`);
+      save();
+    }
+
+    function removeFinance(id) {
+      if (!confirm('Excluir este lançamento?')) return;
+      const item = db.finance.find(f => f.id === id);
+      db.finance = db.finance.filter(f => f.id !== id);
+      audit('Lançamento excluído', item?.description || id);
+      save();
+    }
+
+    function payOrder(id) {
+      const order = db.orders.find(o => o.id === id);
+      const calc = calcOrder(order);
+      const amount = Number(prompt(`Valor do pagamento para OS ${order.number}`, Math.max(0, calc.balance).toFixed(2)));
+      if (!amount) return;
+      order.paid = Number(order.paid || 0) + amount;
+      db.finance.push({ id: uid('fin'), type: 'Entrada', date: today(), dueDate: today(), category: 'Pagamento OS', description: `Pagamento OS ${order.number}`, amount, status: 'Recebido', paymentMethod: 'PIX', orderId: order.id });
+      audit('Pagamento registrado', `OS ${order.number}: ${money.format(amount)}`);
+      save();
+    }
+
+    function finishOrder(id) {
+      const order = db.orders.find(o => o.id === id);
+      if (!confirm(`Finalizar OS ${order.number}?`)) return;
+      order.status = 'Finalizada';
+      order.parts.forEach(item => {
+        const part = db.parts.find(p => p.id === item.id);
+        if (part) {
+          const qty = Number(item.qty || 1);
+          part.stock = Math.max(0, Number(part.stock) - qty);
+          db.stockMovements.unshift({ id: uid('mov'), date: today(), partId: part.id, type: 'Saída', qty, unitCost: Number(part.cost || 0), reason: `Baixa por OS ${order.number}`, supplierId: '' });
+        }
+      });
+      audit('OS finalizada', `OS ${order.number}`);
+      save();
+    }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `troca-ae-sis-pro-${today()}.json`;
+      link.click();
+    }
+
+    function exportReport(type) {
+      syncReportPeriodFromInputs();
+      const reports = {
+        clients: {
+          name: 'clientes',
+          rows: db.clients,
+          columns: [
+            ['Nome', r => r.name], ['Telefone', r => r.phone], ['Email', r => r.email], ['Documento', r => r.document],
+            ['CEP', r => r.zip], ['Logradouro', r => r.street], ['Numero', r => r.number], ['Bairro', r => r.neighborhood],
+            ['Cidade', r => r.city], ['UF', r => r.state], ['Complemento', r => r.complement], ['Observacoes', r => r.notes]
+          ]
+        },
+        orders: {
+          name: 'ordens-servico',
+          rows: db.orders.filter(r => rowInReportPeriod(r.opened)),
+          columns: [
+            ['OS', r => r.number], ['Cliente', r => clientName(r.clientId)], ['Aparelho', r => deviceName(r)], ['IMEI', r => r.deviceImei],
+            ['Status', r => r.status], ['Aprovacao', r => r.approvalStatus], ['Prioridade', r => r.priority], ['Abertura', r => r.opened],
+            ['Previsao', r => r.due], ['Tecnico', r => r.technician], ['Defeito', r => r.defect], ['Diagnostico', r => r.diagnosis],
+            ['Solucao', r => r.solution], ['Pecas', r => r.parts.map(p => partName(p.id)).join(', ')], ['Servicos', r => r.services.map(id => db.services.find(s => s.id === id)?.name).filter(Boolean).join(', ')],
+            ['Total', r => calcOrder(r).total], ['Pago', r => r.paid], ['Saldo', r => calcOrder(r).balance], ['Garantia', r => r.warrantyTerm], ['Pos venda', r => r.followUp]
+          ]
+        },
+        parts: {
+          name: 'pecas',
+          rows: db.parts,
+          columns: [
+            ['SKU', r => r.sku], ['Nome', r => r.name], ['Categoria', r => r.category], ['Fabricante', r => manufacturerName(r.manufacturerId)],
+            ['Modelos compativeis', r => (r.compatibleModels || []).map(modelName).join(', ')], ['Custo medio', r => r.cost], ['Preco', r => r.price],
+            ['Estoque', r => r.stock], ['Minimo', r => r.min], ['Fornecedor', r => r.supplier]
+          ]
+        },
+        finance: {
+          name: 'financeiro',
+          rows: db.finance.filter(r => rowInReportPeriod(r.date || r.dueDate)),
+          columns: [
+            ['Data', r => r.date], ['Vencimento', r => r.dueDate], ['Tipo', r => r.type], ['Categoria', r => r.category],
+            ['Descricao', r => r.description], ['Valor', r => r.amount], ['Status', r => r.status], ['Forma pagamento', r => r.paymentMethod],
+            ['OS', r => db.orders.find(o => o.id === r.orderId)?.number || '']
+          ]
+        },
+        manufacturers: {
+          name: 'fabricantes',
+          rows: db.manufacturers,
+          columns: [['Nome', r => r.name], ['Suporte', r => r.supportPhone], ['Site', r => r.site], ['Modelos', r => db.productModels.filter(m => m.manufacturerId === r.id).length], ['Observacoes', r => r.notes]]
+        },
+        models: {
+          name: 'modelos',
+          rows: db.productModels,
+          columns: [['Fabricante', r => manufacturerName(r.manufacturerId)], ['Modelo', r => r.name], ['Categoria', r => r.category], ['Ano', r => r.year], ['Observacoes', r => r.notes]]
+        },
+        services: {
+          name: 'servicos',
+          rows: db.services,
+          columns: [['Nome', r => r.name], ['Categoria', r => r.category], ['Mao de obra', r => r.labor], ['Garantia dias', r => r.warranty], ['Duracao', r => r.duration]]
+        },
+        stock: {
+          name: 'movimentacao-estoque',
+          rows: (db.stockMovements || []).filter(r => rowInReportPeriod(r.date)),
+          columns: [['Data', r => r.date], ['Peca', r => partName(r.partId)], ['Tipo', r => r.type], ['Quantidade', r => r.qty], ['Custo unitario', r => r.unitCost], ['Fornecedor', r => supplierName(r.supplierId)], ['Motivo', r => r.reason]]
+        }
+      };
+      const report = reports[type];
+      if (!report) return;
+      exportExcel(report.name, report.rows, report.columns);
+    }
+
+    function exportExcel(name, rows, columns) {
+      const table = `<table><thead><tr>${columns.map(([label]) => `<th>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(([, getter]) => `<td>${escapeHtml(getter(row) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      const html = `<!doctype html><html><head><meta charset="utf-8"></head><body>${table}</body></html>`;
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${name}-${today()}.xls`;
+      link.click();
+    }
+
+    document.getElementById('quickOsBtn').onclick = () => openOrderModal();
+    document.getElementById('resetBtn').onclick = reset;
+    document.getElementById('exportBtn').onclick = exportData;
+    document.getElementById('sidebarPinBtn').onclick = toggleSidebarFixed;
+    applyBranding();
+    updateSidebarPin();
+    render();
+  </script>
+</body>
+</html>

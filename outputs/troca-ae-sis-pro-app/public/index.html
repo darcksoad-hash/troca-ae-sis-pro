@@ -1,0 +1,1789 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troca Ae SIS PRO - App</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#f9732f">
+  <style>
+    :root { --orange:#f9732f; --green:#f9732f; --green-2:#fff1e8; --blue:#1d5f8f; --blue-2:#e3eff8; --amber:#9a6b12; --amber-2:#fff2ce; --red:#aa3a35; --red-2:#fae7e5; --bg:#f7f8fb; --surface:#ffffff; --ink:#20242a; --muted:#667085; --line:#e4e7ec; --card:#fff; --surface-2:#f2f4f7; --shadow:0 14px 34px rgba(16,24,40,.08); --radius:8px; --sidebar-width:72px; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family: Inter, Segoe UI, Arial, sans-serif; font-size:16px; letter-spacing:0; background:radial-gradient(circle at top left, rgba(249,115,47,.10), transparent 34%), linear-gradient(180deg,#fbfcff 0%,var(--bg) 38%); color:var(--ink); }
+    body.sidebar-fixed { --sidebar-width:268px; }
+    body.sidebar-fixed .app { grid-template-columns:268px minmax(0,1fr); }
+    .login { min-height:100vh; display:grid; place-items:center; padding:20px; }
+    .box, .panel, header { background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); }
+    .box { width:min(420px,100%); padding:24px; display:grid; gap:14px; }
+    .brand { display:flex; align-items:center; gap:11px; min-width:236px; padding:0 8px 18px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+    .brand img { width:48px; height:48px; object-fit:contain; background:white; border:1px solid #ffe0cf; border-radius:10px; padding:3px; }
+    .brand-text { min-width:135px; transition:opacity .18s ease; }
+    .brand-text strong { display:block; font-size:16px; }
+    .brand-text span { color:var(--muted); font-size:12px; }
+    input, textarea, select, button { font:inherit; }
+    input, textarea, select { width:100%; border:1px solid var(--line); border-radius:8px; min-height:40px; padding:10px; }
+    textarea { min-height:90px; resize:vertical; }
+    label { display:grid; gap:6px; font-size:13px; color:var(--muted); font-weight:700; text-transform:uppercase; }
+    button, .btn { border:1px solid var(--line); background:white; color:var(--ink); border-radius:9px; padding:9px 12px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; min-height:38px; white-space:nowrap; }
+    .primary, .btn.primary, button.primary { background:var(--orange); border-color:var(--orange); color:white; box-shadow:0 8px 18px rgba(249,115,47,.22); }
+    .btn.warn { border-color:var(--amber); color:var(--amber); }
+    .btn.danger { border-color:var(--red); color:var(--red); }
+    .app { display:grid; grid-template-columns:var(--sidebar-width) minmax(0,1fr); min-height:100vh; transition:grid-template-columns .22s ease; }
+    aside { background:rgba(255,255,255,.92); border-right:1px solid var(--line); padding:22px 10px; position:sticky; top:0; height:100vh; width:72px; overflow:hidden; box-shadow:8px 0 30px rgba(16,24,40,.05); backdrop-filter:blur(12px); z-index:20; transition:width .22s ease, padding .22s ease, box-shadow .22s ease; display:grid; align-content:start; gap:10px; }
+    body.sidebar-fixed aside, aside:hover { width:268px; padding-left:16px; padding-right:16px; box-shadow:18px 0 42px rgba(16,24,40,.13); }
+    body:not(.sidebar-fixed) aside:not(:hover) .brand-text, body:not(.sidebar-fixed) aside:not(:hover) .nav-label { opacity:0; pointer-events:none; }
+    .sidebar-pin { width:34px; height:34px; display:grid; place-items:center; color:var(--orange); padding:0; }
+    nav { display:grid; gap:5px; }
+    aside button[data-page] { width:236px; min-width:236px; border:0; background:transparent; color:#475467; display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px; text-align:left; box-shadow:none; }
+    aside button[data-page]:hover { background:#fff4ed; color:var(--orange); }
+    aside button.active { background:var(--orange); color:white; box-shadow:0 10px 20px rgba(249,115,47,.22); }
+    .nav-ico { width:22px; text-align:center; flex:0 0 22px; }
+    .nav-label { transition:opacity .18s ease; }
+    main { padding:24px 28px; min-width:0; width:100%; }
+    header { padding:16px 18px; display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:20px; background:rgba(255,255,255,.82); backdrop-filter:blur(10px); }
+    h1, h2 { margin:0; }
+    h1 { font-size:30px; line-height:1.15; }
+    h2 { font-size:19px; }
+    .sub { color:var(--muted); margin-top:5px; font-size:15px; }
+    .toolbar { display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+    .grid { display:grid; gap:14px; }
+    .kpis { grid-template-columns:repeat(4,minmax(0,1fr)); margin-bottom:18px; }
+    .panel { overflow:hidden; }
+    .panel-head { padding:14px 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .panel-body { padding:14px 16px; overflow:auto; }
+    .kpi { padding:17px; border-top:3px solid var(--orange); min-height:110px; }
+    .kpi span { color:var(--muted); font-size:14px; }
+    .kpi strong { display:block; font-size:32px; margin-top:12px; }
+    .kpi small { display:block; color:var(--muted); margin-top:6px; }
+    .dash-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,.65fr); gap:14px; align-items:stretch; }
+    .mini-chart-row { display:grid; grid-template-columns:170px minmax(0,1fr) 78px; align-items:center; gap:10px; font-size:15px; }
+    .mini-track { height:9px; background:var(--surface-2); border-radius:999px; overflow:hidden; }
+    .mini-fill { height:100%; border-radius:999px; background:var(--orange); }
+    .summary-item { display:flex; justify-content:space-between; gap:10px; padding:10px; border:1px solid var(--line); border-radius:10px; background:#fbfcfd; font-size:15px; margin-bottom:9px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:11px 10px; border-bottom:1px solid var(--line); text-align:left; font-size:15px; vertical-align:top; }
+    th { color:var(--muted); font-size:13px; text-transform:uppercase; background:#f9fafb; }
+    .muted { color:var(--muted); }
+    .hidden { display:none !important; }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .wide { grid-column:1/-1; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .split, .ops-layout { display:grid; grid-template-columns:minmax(320px,.85fr) minmax(0,1.15fr); gap:14px; align-items:start; }
+    .two { grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); }
+    .os-list { display:grid; gap:9px; max-height:calc(100vh - 285px); overflow:auto; padding-right:3px; }
+    .os-card { width:100%; text-align:left; border:1px solid var(--line); background:white; display:grid; gap:8px; margin-bottom:8px; border-radius:10px; padding:12px; transition:border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+    .os-card:hover, .os-card.active { border-color:var(--orange); box-shadow:0 10px 22px rgba(249,115,47,.14); transform:translateY(-1px); }
+    .os-card-top, .detail-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .os-card strong { font-size:16px; }
+    .os-meta { display:grid; gap:8px; color:var(--muted); font-size:14px; }
+    .detail-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .status-strip { height:5px; border-radius:999px; background:var(--orange); }
+    .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .detail-item { border:1px solid var(--line); border-radius:10px; padding:10px; background:#fbfcfd; min-height:62px; }
+    .detail-item span { display:block; color:var(--muted); font-size:13px; font-weight:700; text-transform:uppercase; margin-bottom:4px; }
+    .photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px; }
+    .photo-grid a { border:1px solid var(--line); border-radius:8px; padding:6px; color:inherit; text-decoration:none; background:white; }
+    .photo-grid img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:6px; background:#f2f4f7; }
+    .filters { display:grid; grid-template-columns:minmax(220px,1fr) 180px 180px; gap:10px; margin-bottom:14px; }
+    .pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; color:var(--muted); font-size:13px; }
+    .pager select { width:auto; min-width:72px; }
+    .pill, .badge { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:700; white-space:nowrap; background:var(--green-2); color:var(--green); }
+    .pill.green { background:var(--green-2); color:var(--green); }
+    .pill.blue { background:var(--blue-2); color:var(--blue); }
+    .pill.amber { background:var(--amber-2); color:var(--amber); }
+    .pill.red { background:var(--red-2); color:var(--red); }
+    .detail-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+    .money { color:var(--orange); font-weight:800; }
+    .empty { color:var(--muted); padding:18px; border:1px dashed var(--line); border-radius:8px; background:#fbfcfd; }
+    .export-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .export-grid .icon-btn { width:auto; min-width:46px; padding:0 10px; font-size:12px; font-weight:800; }
+    .report-period { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+    .permission-grid { overflow:auto; }
+    .permission-grid table { min-width:760px; }
+    .selected-row { background:rgba(249,115,47,.09); }
+    .check-list { display:grid; gap:9px; margin-top:6px; }
+    .check-row { display:grid; grid-template-columns:24px minmax(0,1fr); align-items:start; gap:10px; color:var(--ink); font-size:15px; font-weight:600; text-transform:none; }
+    .check-row input { width:18px; min-height:18px; margin-top:2px; padding:0; }
+    .check-row small { color:var(--muted); font-weight:500; }
+    .model-list { max-height:360px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:10px; background:#fbfcfd; }
+    body.dark-mode {
+      --bg:#111418; --surface:#171b21; --surface-2:#20252d; --ink:#f4f6f8; --muted:#aab2bf; --line:#2c3440; --shadow:0 14px 34px rgba(0,0,0,.25);
+      background:#111418;
+    }
+    body.dark-mode aside, body.dark-mode header, body.dark-mode .panel, body.dark-mode .kpi, body.dark-mode .os-card, body.dark-mode .detail-item { background:var(--surface); color:var(--ink); }
+    body.dark-mode input, body.dark-mode select, body.dark-mode textarea, body.dark-mode button, body.dark-mode .btn, body.dark-mode .icon-btn { background:#101318; color:var(--ink); border-color:var(--line); }
+    body.dark-mode th { background:var(--surface-2); }
+    body.dark-mode .summary-item, body.dark-mode .empty { background:#101318; }
+    @media (max-width:980px) { .app, body.sidebar-fixed .app{grid-template-columns:1fr} aside, body.sidebar-fixed aside{position:static;height:auto;width:100%;padding:14px;box-shadow:none} body:not(.sidebar-fixed) aside:not(:hover) .brand-text, body:not(.sidebar-fixed) aside:not(:hover) .nav-label{opacity:1;pointer-events:auto}.brand{min-width:0;padding-bottom:12px} nav{grid-template-columns:repeat(3,minmax(0,1fr))} aside button[data-page]{width:auto;min-width:0}.kpis{grid-template-columns:repeat(2,1fr)} .split,.dash-grid{grid-template-columns:1fr} header{align-items:flex-start;flex-direction:column}.toolbar{justify-content:flex-start} }
+    @media (max-width:980px) { .filters{grid-template-columns:1fr} .two,.ops-layout,.split{grid-template-columns:1fr}.os-list{max-height:none}.export-grid{grid-template-columns:1fr 1fr}.report-period{grid-template-columns:1fr 1fr} }
+    @media (max-width:560px) { main{padding:14px} nav{grid-template-columns:1fr 1fr} header{display:grid} .kpis,.form-grid,.detail-grid,.filters{grid-template-columns:1fr} .toolbar,.actions{width:100%;justify-content:flex-start} button{white-space:normal} }
+  </style>
+</head>
+<body>
+  <section class="login" id="login">
+    <form class="box" id="loginForm">
+      <div class="brand">
+        <img src="/troca-ae-logo.jpg" alt="Troca Ae">
+        <div><h1>Troca Ae SIS PRO</h1><div class="muted">Versao com banco de dados</div></div>
+      </div>
+      <label>E-mail<input name="email" value="admin@troca-ae.local"></label>
+      <label>Senha<input name="password" type="password" value="admin123"></label>
+      <button class="primary">Entrar</button>
+      <div class="muted">Acesso inicial: admin@troca-ae.local / admin123</div>
+    </form>
+  </section>
+
+  <section class="app hidden" id="app">
+    <aside>
+      <div class="brand">
+        <img id="brandLogo" src="/troca-ae-logo.jpg" alt="">
+        <div class="brand-text"><strong id="brandName">Troca Ae SIS PRO</strong><span id="brandSubtitle">Assistencia tecnica</span></div>
+        <button class="sidebar-pin" id="sidebarPinBtn" type="button" title="Fixar menu">&#8660;</button>
+      </div>
+      <nav>
+        <button class="active" data-page="dashboard"><span class="nav-ico">&#9638;</span><span class="nav-label">Painel</span></button>
+        <button data-page="clients"><span class="nav-ico">&#9673;</span><span class="nav-label">Clientes</span></button>
+        <button data-page="orders"><span class="nav-ico">&#9635;</span><span class="nav-label">Ordens de servico</span></button>
+        <button data-page="catalog"><span class="nav-ico">&#9671;</span><span class="nav-label">Fabricantes</span></button>
+        <button data-page="parts"><span class="nav-ico">&#9639;</span><span class="nav-label">Pecas</span></button>
+        <button data-page="services"><span class="nav-ico">&#9672;</span><span class="nav-label">Servicos</span></button>
+        <button data-page="pos"><span class="nav-ico">&#9702;</span><span class="nav-label">PDV</span></button>
+        <button data-page="finance"><span class="nav-ico">&#9670;</span><span class="nav-label">Financeiro</span></button>
+        <button data-page="reports"><span class="nav-ico">&#9636;</span><span class="nav-label">Relatorios</span></button>
+        <button data-page="settings"><span class="nav-ico">&#9873;</span><span class="nav-label">Configuracoes</span></button>
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <div><h1 id="title">Painel</h1><div class="sub" id="subtitle">Dados salvos no banco SQLite local.</div></div>
+        <div class="toolbar"><button class="btn primary" onclick="can('os','criar') ? orderForm() : render('orders')">+ Nova OS</button><button class="btn" onclick="passwordForm()">Trocar senha</button><button class="btn" onclick="logout()">Sair</button></div>
+      </header>
+      <div id="content"></div>
+    </main>
+  </section>
+
+  <script>
+    let token = localStorage.getItem('troca-ae-token') || '';
+    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[] };
+    let selectedOrderId = '';
+    let selectedUserId = '';
+    let focusMemory = null;
+    let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
+    const pageSize = 20;
+    const pageState = {};
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Falha na operacao.');
+      return data;
+    }
+
+    document.addEventListener('input', event => {
+      const target = event.target;
+      if (target?.id) {
+        focusMemory = {
+          id: target.id,
+          start: target.selectionStart,
+          end: target.selectionEnd,
+          value: target.value
+        };
+      }
+    }, true);
+
+    function restoreFocus() {
+      const remembered = focusMemory;
+      if (!remembered?.id) return;
+      setTimeout(() => {
+        const target = document.getElementById(remembered.id);
+        if (!target) return;
+        target.focus();
+        if ('selectionStart' in target) {
+          const pos = Math.min(remembered.start ?? target.value.length, target.value.length);
+          target.setSelectionRange(pos, pos);
+        }
+      }, 0);
+    }
+
+    document.getElementById('loginForm').onsubmit = async event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const result = await api('/api/login', { method:'POST', body: JSON.stringify({ email: form.get('email'), password: form.get('password') }) });
+        token = result.token;
+        localStorage.setItem('troca-ae-token', token);
+        await boot();
+      } catch (error) {
+        alert(error.message);
+      }
+    };
+
+    document.querySelectorAll('aside button[data-page]').forEach(button => {
+      button.onclick = () => {
+        document.querySelectorAll('aside button').forEach(item => item.classList.toggle('active', item === button));
+        render(button.dataset.page);
+      };
+    });
+
+    document.getElementById('sidebarPinBtn').onclick = () => {
+      sidebarFixed = !sidebarFixed;
+      localStorage.setItem('troca-ae-sidebar-fixed', sidebarFixed ? '1' : '0');
+      updateSidebarPin();
+    };
+
+    async function boot() {
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      state = await api('/api/bootstrap');
+      applyBranding();
+      updateSidebarPin();
+      applyPermissions();
+      const requestedPage = new URLSearchParams(location.search).get('page') || 'dashboard';
+      render(document.querySelector(`aside button[data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
+    }
+
+    function applyBranding() {
+      const company = state.company || {};
+      document.title = company.system_name || 'Troca Ae SIS PRO';
+      document.documentElement.style.setProperty('--orange', company.primary_color || '#f9732f');
+      document.documentElement.style.setProperty('--green', company.primary_color || '#f9732f');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', company.primary_color || '#f9732f');
+      document.getElementById('brandName').textContent = company.system_name || 'Troca Ae SIS PRO';
+      document.getElementById('brandLogo').src = company.logo_path || '/troca-ae-logo.jpg';
+      document.body.classList.toggle('dark-mode', company.theme === 'dark');
+    }
+
+    function updateSidebarPin() {
+      document.body.classList.toggle('sidebar-fixed', sidebarFixed);
+      const btn = document.getElementById('sidebarPinBtn');
+      btn.innerHTML = sidebarFixed ? '&#10003;' : '&#8660;';
+      btn.title = sidebarFixed ? 'Menu fixo ativado' : 'Fixar menu';
+    }
+
+    function can(module, action) {
+      const user = state.me || {};
+      if (Number(user.level || 0) >= 100) return true;
+      return (user.permissions?.[module] || []).includes(action);
+    }
+
+    function applyPermissions() {
+      const visible = {
+        dashboard: true,
+        clients: can('clientes', 'ver'),
+        orders: can('os', 'ver'),
+        catalog: can('fabricantes', 'ver'),
+        parts: can('estoque', 'ver'),
+        services: can('servicos', 'ver'),
+        pos: can('pdv', 'ver') || (can('financeiro','criar') && can('estoque','movimentar')),
+        finance: can('financeiro', 'ver'),
+        reports: can('relatorios', 'ver'),
+        settings: true
+      };
+      document.querySelectorAll('aside button[data-page]').forEach(button => {
+        button.classList.toggle('hidden', !visible[button.dataset.page]);
+      });
+    }
+
+    async function logout() {
+      if (token) {
+        try { await api('/api/logout', { method:'POST', body: JSON.stringify({}) }); } catch {}
+      }
+      token = '';
+      localStorage.removeItem('troca-ae-token');
+      document.getElementById('app').classList.add('hidden');
+      document.getElementById('login').classList.remove('hidden');
+    }
+
+    function money(value) {
+      return Number(value || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+    }
+
+    function financeNet(item) {
+      const amount = Number(item.amount || 0);
+      const fee = Number(item.card_fee || 0);
+      return item.type === 'Entrada' ? amount - fee : amount;
+    }
+
+    function monthValue() {
+      return new Date().toISOString().slice(0,7);
+    }
+
+    function textMatch(row, query) {
+      return !query || Object.values(row || {}).join(' ').toLowerCase().includes(query.toLowerCase());
+    }
+
+    function getPage(key, total) {
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      pageState[key] = Math.min(Math.max(1, pageState[key] || 1), pages);
+      return pageState[key];
+    }
+
+    function paginate(key, rows) {
+      const page = getPage(key, rows.length);
+      return rows.slice((page - 1) * pageSize, page * pageSize);
+    }
+
+    function resetPage(key) {
+      pageState[key] = 1;
+    }
+
+    function changePage(key, direction, callback) {
+      pageState[key] = (pageState[key] || 1) + Number(direction || 0);
+      window[callback]?.();
+    }
+
+    function setPage(key, value, callback) {
+      pageState[key] = Number(value) || 1;
+      window[callback]?.();
+    }
+
+    function pager(key, total, callback) {
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      const page = getPage(key, total);
+      if (total <= pageSize) return '';
+      return `<div class="pager"><span>${total} registros</span><button ${page <= 1 ? 'disabled' : ''} onclick="changePage('${key}',-1,'${callback}')">Anterior</button><span>Pagina</span><select onchange="setPage('${key}',this.value,'${callback}')">${Array.from({length:pages}, (_, i) => `<option value="${i + 1}" ${page === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select><span>de ${pages}</span><button ${page >= pages ? 'disabled' : ''} onclick="changePage('${key}',1,'${callback}')">Proximo</button></div>`;
+    }
+
+    function badge(text) {
+      const value = text || '';
+      const tone = ['Finalizada','Recebido','Pago','Entrada','Aprovada','Ativo'].includes(value) ? 'green' : ['Pendente','Aguardando peca','Aguardando aprovacao'].includes(value) ? 'amber' : ['Cancelada','Saida','Reprovada','Inativo','Bloqueado'].includes(value) ? 'red' : 'blue';
+      return `<span class="pill ${tone}">${value}</span>`;
+    }
+
+    function statusColor(status) {
+      if (['Finalizada','Aprovada','Entregue','Pago','Recebido'].includes(status)) return '#16a36a';
+      if (['Em execucao','Em execução','Entrada'].includes(status)) return '#1d5f8f';
+      if (['Aguardando aprovacao','Aguardando aprovação','Aguardando diagnostico','Aguardando diagnóstico','Aguardando peca','Aguardando peça','Pendente','Aberta'].includes(status)) return '#d99116';
+      if (['Cancelada','Reprovada','Saida','Saída'].includes(status)) return '#c7473f';
+      return '#f9732f';
+    }
+
+    function render(page) {
+      const names = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
+      document.getElementById('title').textContent = names[page] || 'Painel';
+      if (page === 'dashboard') renderDashboard();
+      if (page === 'clients') renderClients();
+      if (page === 'orders') renderOrders();
+      if (page === 'catalog') renderCatalog();
+      if (page === 'parts') renderParts();
+      if (page === 'services') renderServices();
+      if (page === 'pos') renderPOS();
+      if (page === 'finance') renderFinance();
+      if (page === 'reports') renderReports();
+      if (page === 'users') renderSettings();
+      if (page === 'settings') renderSettings();
+    }
+
+    async function renderDashboard() {
+      const dash = await api('/api/dashboard');
+      const openOrders = state.orders.filter(order => !['Finalizada','Cancelada'].includes(order.status));
+      const statuses = state.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
+      const maxStatus = Math.max(1, ...Object.values(statuses));
+      const topStatuses = Object.entries(statuses).sort((a,b) => b[1] - a[1]);
+      const income = state.finance.filter(item => item.type === 'Entrada').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const expense = state.finance.filter(item => item.type === 'Saida').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const lowParts = state.parts.filter(part => Number(part.stock || 0) <= Number(part.min_stock || 0));
+      const stockSummary = [['Estoque baixo', lowParts.length], ['Sem estoque', state.parts.filter(part => Number(part.stock || 0) === 0).length], ['Total de pecas', state.parts.length]];
+      document.getElementById('content').innerHTML = `
+        <div class="grid kpis">
+          <div class="kpi"><span>OS abertas</span><strong>${dash.open_orders}</strong><small>Servicos em andamento</small></div>
+          <div class="kpi"><span>A receber</span><strong>${money(dash.receivable)}</strong><small>Saldos de OS nao quitadas</small></div>
+          <div class="kpi"><span>Saldo financeiro</span><strong>${money(income - expense)}</strong><small>Entradas menos saidas</small></div>
+          <div class="kpi"><span>Estoque baixo</span><strong>${dash.parts_low_stock}</strong><small>Pecas abaixo do minimo</small></div>
+        </div>
+        <div class="dash-grid">
+          <div class="panel">
+            <div class="panel-head"><h2>Operacao por status</h2><button class="btn primary" onclick="render('orders')">Ver OS</button></div>
+            <div class="panel-body chart-list">
+              ${topStatuses.map(([name, count]) => `<div class="mini-chart-row"><strong>${name}</strong><div class="mini-track"><div class="mini-fill" style="width:${count / maxStatus * 100}%;background:${statusColor(name)}"></div></div><span>${count} OS</span></div>`).join('') || '<div class="muted">Nenhuma OS cadastrada.</div>'}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Resumo financeiro</h2><button class="btn" onclick="render('finance')">Ver financeiro</button></div>
+            <div class="panel-body summary-list">
+              <div class="summary-item"><strong>Entradas</strong><span class="money">${money(income)}</span></div>
+              <div class="summary-item"><strong>Saidas</strong><span class="money">${money(expense)}</span></div>
+              <div class="summary-item"><strong>Resultado</strong><span class="money">${money(income - expense)}</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid two" style="margin-top:14px">
+          <div class="panel">
+            <div class="panel-head"><h2>Estoque em resumo</h2><button class="btn" onclick="render('parts')">Ver pecas</button></div>
+            <div class="panel-body chart-list">
+              ${stockSummary.map(([name, count]) => `<div class="mini-chart-row"><strong>${name}</strong><div class="mini-track"><div class="mini-fill" style="width:${Math.min(100, count / Math.max(1, state.parts.length) * 100)}%"></div></div><span>${count}</span></div>`).join('')}
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Alertas operacionais</h2></div>
+            <div class="panel-body summary-list">
+              ${openOrders.filter(order => order.due && new Date(order.due) < new Date(new Date().toISOString().slice(0,10))).slice(0,3).map(order => `<div class="summary-item"><strong>OS ${order.number} atrasada</strong><span>${order.client_name}</span></div>`).join('') || '<div class="summary-item"><strong>Sem OS atrasada</strong><span>Hoje</span></div>'}
+              ${lowParts.slice(0,3).map(part => `<div class="summary-item"><strong>${part.name}</strong><span>${part.stock}/${part.min_stock}</span></div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderClients() {
+      const query = document.getElementById('clientSearch')?.value || '';
+      const list = state.clients.filter(client => textMatch(client, query));
+      const rows = paginate('clients', list);
+      document.getElementById('content').innerHTML = `<div class="panel">
+        <div class="panel-head"><h2>Cadastro de clientes</h2>${can('clientes','criar') ? '<button class="btn primary" onclick="clientForm()">+ Cliente</button>' : ''}</div>
+        <div class="panel-body">
+          <div class="filters"><input id="clientSearch" placeholder="Pesquisar em Cadastro de clientes" value="${query}" oninput="resetPage('clients'); renderClients()"><span></span><span></span></div>
+          <table><thead><tr><th>Nome</th><th>Contato</th><th>Endereco</th><th>Observacoes</th><th>Acoes</th></tr></thead><tbody>
+            ${rows.map(c => `<tr><td><strong>${c.name}</strong><br><span class="muted">${c.document || ''}</span></td><td>${c.phone || ''}<br><span class="muted">${c.email || ''}</span></td><td>${[c.street,c.number,c.neighborhood,c.city,c.state].filter(Boolean).join(' - ')}</td><td>${c.notes || ''}</td><td><div class="actions">${can('clientes','editar') ? `<button class="icon-btn" title="Editar" onclick="clientForm('${c.id}')">E</button>` : ''} ${can('clientes','excluir') ? `<button class="icon-btn" title="Excluir" onclick="removeRecord('clients','${c.id}','clients')">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum cliente encontrado.</td></tr>'}
+          </tbody></table>${pager('clients', list.length, 'renderClients')}
+        </div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function clientForm(id = '') {
+      const item = state.clients.find(client => client.id === id) || {};
+      document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>Novo cliente</h2></div><div class="panel-body">
+        <form class="form-grid" id="clientForm">
+          <label>Nome<input name="name" required value="${item.name || ''}"></label><label>Telefone<input name="phone" value="${item.phone || ''}"></label>
+          <label>E-mail<input name="email" value="${item.email || ''}"></label><label>Documento<input name="document" value="${item.document || ''}"></label>
+          <label>CEP<input name="zip" value="${item.zip || ''}" onblur="lookupCep(this.form)"></label><label>Logradouro<input name="street" value="${item.street || ''}"></label>
+          <label>Numero da residencia<input name="number" value="${item.number || ''}"></label><label>Bairro<input name="neighborhood" value="${item.neighborhood || ''}"></label>
+          <label>Cidade<input name="city" value="${item.city || ''}"></label><label>UF<input name="state" value="${item.state || ''}"></label>
+          <label>Complemento<input name="complement" value="${item.complement || ''}"></label><label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+          <div class="actions wide"><button class="primary">Salvar</button><button type="button" onclick="renderClients()">Cancelar</button></div>
+        </form>
+      </div></div>`;
+      document.getElementById('clientForm').onsubmit = async event => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+        await api(`/api/clients${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
+        state = await api('/api/bootstrap');
+        renderClients();
+      };
+    }
+
+    async function lookupCep(form) {
+      const zip = (form.zip.value || '').replace(/\D/g, '');
+      if (zip.length !== 8) return;
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
+        const data = await res.json();
+        if (data.erro) return;
+        form.street.value = data.logradouro || form.street.value;
+        form.neighborhood.value = data.bairro || form.neighborhood.value;
+        form.city.value = data.localidade || form.city.value;
+        form.state.value = data.uf || form.state.value;
+      } catch {}
+    }
+
+    function renderOrders() {
+      const query = document.getElementById('orderSearch')?.value || '';
+      const status = document.getElementById('orderStatus')?.value || '';
+      const priority = document.getElementById('orderPriority')?.value || '';
+      const list = state.orders.filter(order => {
+        const hay = `${order.number} ${order.client_name} ${order.device_brand} ${order.device_model} ${order.device_imei} ${order.technician_name} ${order.defect}`;
+        return textMatch({ hay }, query) && (!status || order.status === status) && (!priority || order.priority === priority);
+      }).sort((a,b) => Number(b.number) - Number(a.number));
+      const rows = paginate('orders', list);
+      if (!selectedOrderId || !list.some(order => order.id === selectedOrderId)) selectedOrderId = list[0]?.id || state.orders[0]?.id || '';
+      document.getElementById('content').innerHTML = `<div class="panel">
+        <div class="panel-head"><h2>Painel operacional de OS</h2>${can('os','criar') ? '<button class="btn primary" onclick="orderForm()">+ Nova OS</button>' : ''}</div>
+        <div class="panel-body">
+          <div class="filters">
+            <input id="orderSearch" placeholder="Buscar por cliente, aparelho, OS ou tecnico" value="${query}" oninput="resetPage('orders'); renderOrders()">
+            <select id="orderStatus" onchange="resetPage('orders'); renderOrders()"><option value="">Todos os status</option>${osStatuses.map(item => `<option ${status === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+            <select id="orderPriority" onchange="resetPage('orders'); renderOrders()"><option value="">Todas prioridades</option>${['Normal','Alta','Urgente'].map(item => `<option ${priority === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+          </div>
+          <div class="ops-layout">
+        <div class="panel">
+          <div class="panel-body">
+            <div class="os-list">
+            ${rows.map(order => `<button class="os-card ${order.id === selectedOrderId ? 'active' : ''}" onclick="selectOrder('${order.id}')">
+              <div class="status-strip" style="background:${statusColor(order.status)}"></div>
+              <div class="os-card-top"><strong>#${order.number} - ${order.client_name}</strong>${badge(order.status)}</div>
+              <div class="os-meta"><span>${order.device_brand || ''} ${order.device_model || ''}</span><span>${order.defect || 'Sem defeito informado'}</span><span>${order.opened || ''} ate ${order.due || ''} | ${order.priority || ''}</span><span class="money">${money(order.calc?.total || 0)} | saldo ${money(order.calc?.balance || 0)}</span></div>
+            </button>`).join('') || '<div class="empty">Nenhuma OS encontrada.</div>'}
+            </div>
+            ${pager('orders', list.length, 'renderOrders')}
+          </div>
+        </div>
+        <div id="orderDetail">${orderDetail(selectedOrderId)}</div>
+          </div>
+        </div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function selectOrder(id) {
+      selectedOrderId = id;
+      renderOrders();
+    }
+
+    function orderDetail(id) {
+      const order = state.orders.find(item => item.id === id);
+      if (!order) return `<div class="panel"><div class="panel-body muted">Selecione ou crie uma OS.</div></div>`;
+      const parts = order.parts?.map(item => `${item.name} (${item.quantity}) - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhuma peca';
+      const services = order.services?.map(item => `${item.name} - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhum servico';
+      const history = order.status_history?.map(item => `<div class="summary-item"><strong>${item.old_status || 'Inicio'} -> ${item.new_status}</strong><span>${item.created_at || ''} ${item.user_name ? `por ${item.user_name}` : ''}<br>${item.note || ''}</span></div>`).join('') || '<div class="muted">Nenhuma movimentacao de status registrada.</div>';
+      return `<div class="panel">
+        <div class="panel-head"><h2>OS #${order.number}</h2>${badge(order.status)}</div>
+        <div class="panel-body grid">
+          <div class="detail-top"><div><h2 style="margin:0 0 4px">${order.client_name}</h2><div class="muted">${order.device_brand || ''} ${order.device_model || ''} | IMEI ${order.device_imei || 'nao informado'}</div></div><div class="money">${money(order.calc?.total || 0)}</div></div>
+          <div class="detail-actions">
+            ${can('os','editar') ? `<button class="primary" onclick="orderForm('${order.id}')">Editar</button>` : ''}
+            ${can('financeiro','pagar') ? `<button onclick="payOrder('${order.id}')">Pagamentos</button>` : ''}
+            ${can('os','finalizar') ? `<button onclick="finishOrder('${order.id}')">Finalizar OS</button>` : ''}
+            ${can('os','imprimir') ? `<button onclick="printOrder('${order.id}')">Imprimir OS</button>` : ''}
+            ${can('os','aprovar') ? `<button onclick="signatureForm('${order.id}','approval')">Aprovar com assinatura</button>` : ''}
+            ${can('os','finalizar') ? `<button onclick="signatureForm('${order.id}','delivery')">Assinar entrega</button>` : ''}
+            <button onclick="sendOrderWhatsApp('${order.id}','budget')">WhatsApp orcamento</button>
+            <button onclick="sendOrderWhatsApp('${order.id}','delivery')">WhatsApp termo</button>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item"><span>Cliente</span>${order.client_name}</div>
+            <div class="detail-item"><span>Aparelho</span>${order.device_brand || ''} ${order.device_model || ''}<br><small class="muted">${order.device_imei || ''}</small></div>
+            <div class="detail-item"><span>Status</span>${order.status}<br><small class="muted">${order.priority}</small></div>
+            <div class="detail-item"><span>Pagamento</span>Pago ${money(order.calc?.paid || 0)}<br><small class="muted">Saldo ${money(order.calc?.balance || 0)}</small></div>
+            <div class="detail-item"><span>Defeito</span>${order.defect || 'Nao informado'}</div>
+            <div class="detail-item"><span>Diagnostico</span>${order.diagnosis || 'Nao informado'}</div>
+            <div class="detail-item"><span>Pecas</span>${parts}</div>
+            <div class="detail-item"><span>Servicos</span>${services}</div>
+            <div class="detail-item"><span>Aprovacao</span>${order.approval_signed_at ? `Assinado em ${order.approval_signed_at}` : 'Pendente'}${order.approval_signature ? `<br><img src="${order.approval_signature}" alt="Assinatura aprovacao" style="max-width:150px;max-height:58px;background:white;border:1px solid var(--line)">` : ''}</div>
+            <div class="detail-item"><span>Entrega</span>${order.delivery_signed_at ? `Assinado em ${order.delivery_signed_at}` : 'Pendente'}${order.delivery_signature ? `<br><img src="${order.delivery_signature}" alt="Assinatura entrega" style="max-width:150px;max-height:58px;background:white;border:1px solid var(--line)">` : ''}</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Historico de status</h2></div>
+            <div class="panel-body">${history}</div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Fotos da OS</h2>${can('os','editar') ? `<label style="text-transform:none;color:var(--ink);font-weight:600"><input type="file" accept="image/*" multiple onchange="uploadPhotos('${order.id}', this.files)"> Upload de fotos</label>` : ''}</div>
+            <div class="panel-body">${photoList(order)}</div>
+          </div>
+        </div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function photoList(order) {
+      if (!order.photos?.length) return '<div class="muted">Nenhuma foto cadastrada.</div>';
+      return `<div class="photo-grid">${order.photos.map(photo => `<a href="${photo.file_path}" download="${photo.file_name}" target="_blank">
+        <img src="${photo.file_path}" alt="${photo.file_name}">
+        <small>${photo.file_name}</small>
+      </a>`).join('')}</div>`;
+    }
+
+    const osStatuses = ['Aberta','Aguardando diagnostico','Aguardando aprovacao','Aprovada','Em execucao','Aguardando peca','Finalizada','Entregue','Cancelada'];
+    const warrantyDefault = `TERMO DE GARANTIA DO SERVICO PRESTADO\n\nA garantia legal do servico prestado e de 90 dias, contados a partir da data de entrega do aparelho ao cliente. A garantia cobre exclusivamente o servico executado nesta Ordem de Servico e as pecas substituidas descritas no documento.\n\nA garantia nao cobre queda, impacto, oxidacao, contato com liquido, mau uso, violacao, tentativa de reparo por terceiros, falhas de software, perda de dados ou defeitos nao relacionados ao reparo aprovado.`;
+
+    function modelsForManufacturer(manufacturerId) {
+      return state.models.filter(model => !manufacturerId || model.manufacturer_id === manufacturerId);
+    }
+
+    function partsForOrder(manufacturerId, modelId) {
+      if (modelId) {
+        return state.parts.filter(part => safeJson(part.compatible_models, []).includes(modelId) && (part.usage_type || 'Ambos') !== 'Venda');
+      }
+      if (manufacturerId) return state.parts.filter(part => part.manufacturer_id === manufacturerId && (part.usage_type || 'Ambos') !== 'Venda');
+      return [];
+    }
+
+    function modelSelectOptions(manufacturerId, selected = '') {
+      const models = modelsForManufacturer(manufacturerId);
+      return `<option value="">Selecione o modelo</option>${models.map(model => `<option value="${model.id}" ${selected === model.id ? 'selected' : ''}>${model.name}${model.year ? ` - ${model.year}` : ''}</option>`).join('')}`;
+    }
+
+    function orderPartOptions(manufacturerId, modelId, selected = []) {
+      const parts = partsForOrder(manufacturerId, modelId);
+      if (!modelId && !manufacturerId) return '<div class="muted">Selecione o fabricante e o modelo para listar as pecas corretas.</div>';
+      if (!parts.length) return '<div class="muted">Nenhuma peca compativel cadastrada para este modelo.</div>';
+      return `<div class="check-list">${parts.map(part => `<label class="check-row"><input type="checkbox" name="parts" value="${part.id}" ${selected.includes(part.id) ? 'checked' : ''}><span>${part.name} - ${money(part.price)}<br><small>Estoque ${part.stock} | Garantia ${part.warranty_days || 90} dias</small></span></label>`).join('')}</div>`;
+    }
+
+    function syncOrderCatalog() {
+      const form = document.getElementById('orderForm');
+      if (!form) return;
+      const manufacturerId = form.device_manufacturer_id.value;
+      const modelSelect = form.device_model_id;
+      const currentModel = modelSelect.value;
+      modelSelect.innerHTML = modelSelectOptions(manufacturerId, currentModel);
+      if (currentModel && !modelsForManufacturer(manufacturerId).some(model => model.id === currentModel)) {
+        modelSelect.value = '';
+      }
+      syncOrderDeviceFields();
+      syncOrderParts();
+    }
+
+    function syncOrderDeviceFields() {
+      const form = document.getElementById('orderForm');
+      if (!form) return;
+      const model = state.models.find(item => item.id === form.device_model_id.value);
+      form.device_brand.value = manufacturerName(form.device_manufacturer_id.value);
+      if (model) form.device_model.value = model.name;
+    }
+
+    function syncOrderParts() {
+      const form = document.getElementById('orderForm');
+      if (!form) return;
+      document.getElementById('orderPartsList').innerHTML = orderPartOptions(form.device_manufacturer_id.value, form.device_model_id.value);
+    }
+
+    function orderForm(id = '') {
+      const item = state.orders.find(order => order.id === id) || {};
+      const selectedParts = (item.parts || []).map(part => part.id);
+      const selectedServices = (item.services || []).map(service => service.id);
+      const defaultManufacturer = item.device_manufacturer_id || state.manufacturers[0]?.id || '';
+      const defaultModel = item.device_model_id || modelsForManufacturer(defaultManufacturer)[0]?.id || '';
+      const defaultModelName = item.device_model || state.models.find(model => model.id === defaultModel)?.name || '';
+      document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>${id ? `Editar OS #${item.number}` : 'Nova OS'}</h2></div><div class="panel-body">
+        <form class="form-grid" id="orderForm">
+          <label>Cliente<select name="client_id" required>${state.clients.map(c => `<option value="${c.id}" ${item.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label>
+          <label>Fabricante<select name="device_manufacturer_id" required onchange="syncOrderCatalog()">${state.manufacturers.map(m => `<option value="${m.id}" ${m.id === defaultManufacturer ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>
+          <label>Modelo cadastrado<select name="device_model_id" required onchange="syncOrderDeviceFields();syncOrderParts()">${modelSelectOptions(defaultManufacturer, defaultModel)}</select></label>
+          <label>Marca do aparelho<input name="device_brand" value="${manufacturerName(defaultManufacturer)}" readonly></label>
+          <label>Modelo do aparelho<input name="device_model" value="${defaultModelName}" readonly></label>
+          <label>IMEI/Serial<input name="device_imei" value="${item.device_imei || ''}"></label>
+          <label>Cor<input name="device_color" value="${item.device_color || ''}"></label>
+          <label>Senha/Padrao<input name="device_password" value="${item.device_password || ''}"></label>
+          <label>Status<select name="status">${osStatuses.map(status => `<option ${item.status === status ? 'selected' : ''}>${status}</option>`).join('')}</select></label>
+          <label>Aprovacao<select name="approval_status">${['Pendente','Aprovada','Reprovada'].map(status => `<option ${item.approval_status === status ? 'selected' : ''}>${status}</option>`).join('')}</select></label>
+          <label>Prioridade<select name="priority">${['Normal','Alta','Urgente'].map(priority => `<option ${item.priority === priority ? 'selected' : ''}>${priority}</option>`).join('')}</select></label>
+          <label>Abertura<input name="opened" type="date" value="${item.opened || new Date().toISOString().slice(0,10)}"></label>
+          <label>Prazo combinado<input name="due" type="date" value="${item.due || ''}"></label>
+          <label>Tecnico responsavel<input name="technician_name" value="${item.technician_name || ''}"></label>
+          <label>Desconto<input name="discount" type="number" step="0.01" value="${item.discount || 0}"></label>
+          <label class="wide">Estado de entrada<textarea name="device_condition" placeholder="Tela, carcaca, botoes, sinais de queda, oxidacao, acessorios recebidos...">${item.device_condition || ''}</textarea></label>
+          <label class="wide">Defeito relatado<textarea name="defect">${item.defect || ''}</textarea></label>
+          <label class="wide">Diagnostico / laudo<textarea name="diagnosis">${item.diagnosis || ''}</textarea></label>
+          <label class="wide">Solucao executada<textarea name="solution">${item.solution || ''}</textarea></label>
+          <label class="wide">Observacoes das fotos<textarea name="photos_notes" placeholder="Registre aqui quais fotos foram anexadas e o estado visual do aparelho.">${item.photos_notes || ''}</textarea></label>
+          <label class="wide">Termo de garantia<textarea name="warranty_term" style="min-height:150px">${(item.warranty_term || state.company?.warranty_term || warrantyDefault).replace(/</g, '&lt;')}</textarea></label>
+          <label class="wide">Termo de entrega<textarea name="delivery_term">${item.delivery_term || 'Cliente declara ter recebido o aparelho testado, conferido e em conformidade com o servico aprovado nesta Ordem de Servico.'}</textarea></label>
+          <label class="wide">Pos-venda<textarea name="follow_up" placeholder="Retorno, observacoes de atendimento e acompanhamento do cliente.">${item.follow_up || ''}</textarea></label>
+          <label class="wide">Pecas usadas<div id="orderPartsList">${orderPartOptions(defaultManufacturer, defaultModel, selectedParts)}</div></label>
+          <label class="wide">Servicos<div class="check-list">${state.services.map(s => `<label class="check-row"><input type="checkbox" name="services" value="${s.id}" ${selectedServices.includes(s.id) ? 'checked' : ''}><span>${s.name} - ${money(s.labor)}<br><small>Garantia ${s.warranty_days || 90} dias</small></span></label>`).join('')}</div></label>
+          <label class="wide">Fotos do produto
+            <div class="actions">
+              <button class="btn" type="button" onclick="document.getElementById('orderPhotoFiles').click()">Upload de fotos</button>
+              ${id && item.photos?.length ? `<button class="btn" type="button" onclick="downloadOrderPhotos('${id}')">Download das fotos</button>` : ''}
+            </div>
+            <input id="orderPhotoFiles" name="order_photos" type="file" accept="image/*" multiple class="hidden" onchange="previewOrderPhotos(this.files)">
+            <div id="orderPhotoPreview">${id && item.photos?.length ? photoList(item) : '<div class="muted">Nenhuma foto selecionada.</div>'}</div>
+          </label>
+          <div class="actions wide"><button class="primary">Salvar OS</button><button type="button" onclick="renderOrders()">Cancelar</button></div>
+        </form>
+      </div></div>`;
+      document.getElementById('orderForm').onsubmit = async event => {
+        event.preventDefault();
+        const photoFiles = Array.from(event.currentTarget.order_photos?.files || []);
+        const form = new FormData(event.currentTarget);
+        const data = Object.fromEntries(form.entries());
+        data.parts = form.getAll('parts');
+        data.services = form.getAll('services');
+        delete data.order_photos;
+        const model = state.models.find(item => item.id === data.device_model_id);
+        data.device_model = model?.name || data.device_model;
+        data.device_brand = manufacturerName(data.device_manufacturer_id);
+        const savedOrder = await api(`/api/orders${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
+        if (photoFiles.length) await uploadPhotos(savedOrder.id, photoFiles, false);
+        state = await api('/api/bootstrap');
+        renderOrders();
+      };
+    }
+
+    async function payOrder(id) {
+      const amount = prompt('Valor do pagamento');
+      if (!amount) return;
+      await api(`/api/orders/${id}/payment`, { method:'POST', body: JSON.stringify({ amount: Number(amount), payment_method: 'PIX' }) });
+      state = await api('/api/bootstrap');
+      selectedOrderId = id;
+      renderOrders();
+    }
+
+    async function finishOrder(id) {
+      if (!confirm('Finalizar esta OS e baixar estoque das pecas usadas?')) return;
+      await api(`/api/orders/${id}/finish`, { method:'POST', body: JSON.stringify({}) });
+      state = await api('/api/bootstrap');
+      selectedOrderId = id;
+      renderOrders();
+    }
+
+    function signatureForm(id, type) {
+      const order = state.orders.find(item => item.id === id);
+      if (!order) return;
+      const isApproval = type === 'approval';
+      document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>${isApproval ? 'Aprovacao de orcamento' : 'Termo de entrega'} - OS #${order.number}</h2></div><div class="panel-body">
+        <div class="summary-item"><strong>${order.client_name}</strong><span>${order.device_brand || ''} ${order.device_model || ''} - Total ${money(order.calc?.total || 0)}</span></div>
+        <p class="muted">${isApproval ? 'Cliente aprova o orcamento, servicos, pecas, prazos e condicoes de garantia descritos nesta OS.' : (order.delivery_term || 'Cliente declara ter recebido o aparelho testado, conferido e em conformidade com o servico aprovado.')}</p>
+        <canvas id="signatureCanvas" width="720" height="220" style="width:100%;max-width:720px;height:220px;background:white;border:1px solid var(--line);border-radius:8px;touch-action:none"></canvas>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn primary" onclick="saveSignature('${id}','${type}')">Salvar assinatura</button>
+          <button class="btn" onclick="clearSignature()">Limpar</button>
+          <button class="btn" onclick="renderOrders()">Cancelar</button>
+        </div>
+      </div></div>`;
+      initSignaturePad();
+    }
+
+    function initSignaturePad() {
+      const canvas = document.getElementById('signatureCanvas');
+      if (!canvas) return;
+      const context = canvas.getContext('2d');
+      context.lineWidth = 3;
+      context.lineCap = 'round';
+      context.strokeStyle = '#111827';
+      let drawing = false;
+      const point = event => {
+        const rect = canvas.getBoundingClientRect();
+        const source = event.touches?.[0] || event;
+        return { x: (source.clientX - rect.left) * (canvas.width / rect.width), y: (source.clientY - rect.top) * (canvas.height / rect.height) };
+      };
+      const start = event => {
+        drawing = true;
+        const p = point(event);
+        context.beginPath();
+        context.moveTo(p.x, p.y);
+        event.preventDefault();
+      };
+      const move = event => {
+        if (!drawing) return;
+        const p = point(event);
+        context.lineTo(p.x, p.y);
+        context.stroke();
+        event.preventDefault();
+      };
+      const stop = () => { drawing = false; };
+      canvas.onmousedown = start;
+      canvas.onmousemove = move;
+      canvas.onmouseup = stop;
+      canvas.onmouseleave = stop;
+      canvas.ontouchstart = start;
+      canvas.ontouchmove = move;
+      canvas.ontouchend = stop;
+    }
+
+    function clearSignature() {
+      const canvas = document.getElementById('signatureCanvas');
+      if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async function saveSignature(id, type) {
+      const canvas = document.getElementById('signatureCanvas');
+      if (!canvas) return;
+      const signature = canvas.toDataURL('image/png');
+      await api(`/api/orders/${id}/${type === 'approval' ? 'approve' : 'deliver'}`, { method:'POST', body: JSON.stringify({ signature }) });
+      state = await api('/api/bootstrap');
+      selectedOrderId = id;
+      renderOrders();
+    }
+
+    function sendOrderWhatsApp(id, type) {
+      const order = state.orders.find(item => item.id === id);
+      const client = state.clients.find(item => item.id === order?.client_id) || {};
+      if (!order) return;
+      const phone = String(client.phone || '').replace(/\D/g, '');
+      const total = money(order.calc?.total || 0);
+      const balance = money(order.calc?.balance || 0);
+      const parts = (order.parts || []).map(item => `${item.name} (${item.quantity})`).join(', ') || 'sem pecas';
+      const services = (order.services || []).map(item => item.name).join(', ') || 'sem servicos';
+      const text = type === 'delivery'
+        ? `Ola ${order.client_name}, seu aparelho ${order.device_brand || ''} ${order.device_model || ''} da OS #${order.number} esta com termo de entrega pronto. Status: ${order.status}. Saldo: ${balance}.`
+        : `Ola ${order.client_name}, segue orcamento da OS #${order.number}: ${order.device_brand || ''} ${order.device_model || ''}. Defeito: ${order.defect || 'nao informado'}. Pecas: ${parts}. Servicos: ${services}. Total: ${total}.`;
+      const url = phone ? `https://wa.me/55${phone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+
+    function printOrder(id) {
+      const order = state.orders.find(item => item.id === id);
+      if (!order) return;
+      const company = state.company || {};
+      const client = state.clients.find(item => item.id === order.client_id) || {};
+      const parts = (order.parts || []).map(item => `<tr><td>${item.name}</td><td>${item.quantity}</td><td>${item.warranty_days || 90} dias</td><td>${money(item.unit_price)}</td></tr>`).join('') || '<tr><td colspan="4">Nenhuma peca.</td></tr>';
+      const services = (order.services || []).map(item => `<tr><td>${item.name}</td><td>1</td><td>${item.warranty_days || 90} dias</td><td>${money(item.labor)}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum servico.</td></tr>';
+      const address = [company.street, company.number, company.neighborhood, company.city, company.state].filter(Boolean).join(' - ');
+      const clientAddress = [client.street, client.number, client.neighborhood, client.city, client.state].filter(Boolean).join(' - ');
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>OS ${order.number}</title><style>
+        @page{size:A4;margin:7mm}
+        body{font-family:Arial,sans-serif;color:#20242a;margin:0;background:white;font-size:11px}
+        .page{padding:8px;border-top:5px solid ${company.primary_color || '#f9732f'}}
+        .top{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:start}
+        img{max-width:62px;max-height:62px;object-fit:contain}
+        h1{font-size:20px;margin:0 0 3px}.muted{color:#667085}.box{border:1px solid #d0d5dd;border-radius:6px;padding:7px;margin-top:7px}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+        table{width:100%;border-collapse:collapse;margin-top:5px}th,td{border-bottom:1px solid #e4e7ec;padding:4px;text-align:left}th{font-size:10px;color:#667085;text-transform:uppercase}
+        p{margin:4px 0;line-height:1.25}.term{font-size:10px;line-height:1.2;white-space:pre-wrap}.total{font-size:16px;font-weight:800;color:${company.primary_color || '#f9732f'}}
+        @media print{button{display:none}.page{padding:0;border-top-width:4px}}
+      </style></head><body><div class="page">
+        <div class="top"><img src="${company.logo_path || '/troca-ae-logo.jpg'}"><div><h1>Ordem de Servico #${order.number}</h1><strong>${company.trade_name || company.system_name || 'Troca Ae SIS PRO'}</strong><br><span class="muted">${company.legal_name || ''} ${company.document || ''}<br>${company.phone || ''} ${company.email || ''}<br>${address}</span></div><div class="total">${money(order.calc?.total || 0)}</div></div>
+        <div class="grid">
+          <div class="box"><strong>Cliente</strong><p>${client.name || order.client_name || ''}<br>${client.document || ''}<br>${client.phone || ''} ${client.email || ''}<br>${clientAddress}</p></div>
+          <div class="box"><strong>Aparelho</strong><p>${order.device_brand || ''} ${order.device_model || ''}<br>IMEI/Serial: ${order.device_imei || ''}<br>Cor: ${order.device_color || ''}<br>Senha/Padrao: ${order.device_password || ''}</p></div>
+        </div>
+        <div class="grid3">
+          <div class="box"><strong>Status</strong><p>${order.status || ''}<br>${order.approval_status || ''}<br>${order.priority || ''}</p></div>
+          <div class="box"><strong>Datas</strong><p>Abertura: ${order.opened || ''}<br>Previsao: ${order.due || ''}<br>Tecnico: ${order.technician_name || ''}</p></div>
+          <div class="box"><strong>Pagamento</strong><p>Pago: ${money(order.calc?.paid || 0)}<br>Saldo: ${money(order.calc?.balance || 0)}<br>Desconto: ${money(order.discount || 0)}</p></div>
+        </div>
+        <div class="box"><strong>Estado de entrada</strong><p>${order.device_condition || ''}</p><strong>Defeito relatado</strong><p>${order.defect || ''}</p><strong>Diagnostico / laudo</strong><p>${order.diagnosis || ''}</p><strong>Solucao</strong><p>${order.solution || ''}</p></div>
+        <div class="grid">
+          <div class="box"><strong>Pecas</strong><table><thead><tr><th>Peca</th><th>Qtd</th><th>Garantia</th><th>Valor</th></tr></thead><tbody>${parts}</tbody></table></div>
+          <div class="box"><strong>Servicos</strong><table><thead><tr><th>Servico</th><th>Qtd</th><th>Garantia</th><th>Valor</th></tr></thead><tbody>${services}</tbody></table></div>
+        </div>
+        <div class="box"><strong>Termo de garantia</strong><div class="term">${order.warranty_term || company.warranty_term || warrantyDefault}</div></div>
+        <div class="box"><strong>Termo de entrega</strong><p>${order.delivery_term || ''}</p><span class="muted">${company.print_footer || ''}</span></div>
+        <div class="grid">
+          <div class="box"><strong>Assinatura aprovacao</strong><p>${order.approval_signed_at || 'Pendente'}</p>${order.approval_signature ? `<img src="${order.approval_signature}" style="max-width:220px;max-height:80px">` : ''}</div>
+          <div class="box"><strong>Assinatura entrega</strong><p>${order.delivery_signed_at || 'Pendente'}</p>${order.delivery_signature ? `<img src="${order.delivery_signature}" style="max-width:220px;max-height:80px">` : ''}</div>
+        </div>
+        <button onclick="window.print()">Imprimir</button>
+      </div></body></html>`;
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return alert('Permita pop-ups para imprimir a OS.');
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadPhotos(orderId, files, refresh = true) {
+      const selected = Array.from(files || []);
+      for (const file of selected) {
+        const dataUrl = await fileToDataUrl(file);
+        await api(`/api/orders/${orderId}/photos`, {
+          method:'POST',
+          body: JSON.stringify({ file_name:file.name, mime_type:file.type, data_url:dataUrl })
+        });
+      }
+      if (!refresh) return;
+      state = await api('/api/bootstrap');
+      selectedOrderId = orderId;
+      renderOrders();
+    }
+
+    async function previewOrderPhotos(files) {
+      const selected = Array.from(files || []);
+      const target = document.getElementById('orderPhotoPreview');
+      if (!target) return;
+      if (!selected.length) {
+        target.innerHTML = '<div class="muted">Nenhuma foto selecionada.</div>';
+        return;
+      }
+      const previews = [];
+      for (const file of selected) {
+        previews.push(`<a><img src="${await fileToDataUrl(file)}" alt="${file.name}"><small>${file.name}</small></a>`);
+      }
+      target.innerHTML = `<div class="photo-grid">${previews.join('')}</div>`;
+    }
+
+    function downloadOrderPhotos(orderId) {
+      const order = state.orders.find(item => item.id === orderId);
+      (order?.photos || []).forEach(photo => {
+        const link = document.createElement('a');
+        link.href = photo.file_path;
+        link.download = photo.file_name;
+        link.click();
+      });
+    }
+
+    async function readLogoFile(input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const dataUrl = await fileToDataUrl(file);
+      document.getElementById('companyLogoPath').value = dataUrl;
+      document.getElementById('companyLogoPreview').src = dataUrl;
+    }
+
+    function supplierName(id) {
+      return state.suppliers.find(supplier => supplier.id === id)?.name || '';
+    }
+
+    function partOutgoing(partId) {
+      return (state.stock_movements || []).filter(mov => mov.part_id === partId && mov.type === 'Saida').reduce((sum, mov) => sum + Number(mov.quantity || 0), 0);
+    }
+
+    function reorderQty(part) {
+      const stock = Number(part.stock || 0);
+      const min = Number(part.min_stock || 0);
+      const giro = partOutgoing(part.id);
+      const target = Math.max(min * 2, Math.ceil(giro / 2), min + 1);
+      return Math.max(0, target - stock);
+    }
+
+    function reorderText(part) {
+      const qty = reorderQty(part);
+      if (!qty) return '<span class="pill green">OK</span>';
+      return `<span class="pill amber">Comprar ${qty}</span>`;
+    }
+
+    function stockBadge(part) {
+      const stock = Number(part.stock || 0);
+      const min = Number(part.min_stock || 0);
+      if (stock <= 0) return '<span class="pill red">Sem estoque</span>';
+      if (stock <= min) return '<span class="pill amber">Reposicao</span>';
+      return '<span class="pill green">Recebido</span>';
+    }
+
+    function renderParts() {
+      const query = document.getElementById('partsSearch')?.value || '';
+      const manufacturer = document.getElementById('partsManufacturer')?.value || '';
+      const stockFilter = document.getElementById('partsStockFilter')?.value || '';
+      const supplierQuery = document.getElementById('supplierSearch')?.value || '';
+      const movementQuery = document.getElementById('movementSearch')?.value || '';
+      const movementType = document.getElementById('movementTypeFilter')?.value || '';
+      const list = state.parts.filter(part => {
+        const stockOk = !stockFilter || (stockFilter === 'low' && Number(part.stock) <= Number(part.min_stock)) || (stockFilter === 'zero' && Number(part.stock) === 0);
+        return textMatch(part, query) && (!manufacturer || part.manufacturer_id === manufacturer) && stockOk;
+      });
+      const rows = paginate('parts', list);
+      const supplierRows = paginate('suppliers', state.suppliers.filter(supplier => textMatch(supplier, supplierQuery)));
+      const movementRows = paginate('movements', (state.stock_movements || []).filter(mov => textMatch(mov, movementQuery) && (!movementType || mov.type === movementType)));
+      document.getElementById('content').innerHTML = `<div class="grid two">
+        <div class="panel"><div class="panel-head"><h2>Pecas e estoque</h2>${can('estoque','criar') ? '<button class="btn primary" onclick="partForm()">+ Peca</button>' : ''}</div><div class="panel-body">
+          <div class="filters">
+            <input id="partsSearch" placeholder="Pesquisar peca, SKU, modelo ou fabricante" value="${query}" oninput="resetPage('parts'); renderParts()">
+            <select id="partsManufacturer" onchange="resetPage('parts'); renderParts()"><option value="">Todos fabricantes</option>${state.manufacturers.map(m => `<option value="${m.id}" ${manufacturer === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select>
+            <select id="partsStockFilter" onchange="resetPage('parts'); renderParts()"><option value="">Todo estoque</option><option value="low" ${stockFilter === 'low' ? 'selected' : ''}>Estoque baixo</option><option value="zero" ${stockFilter === 'zero' ? 'selected' : ''}>Sem estoque</option></select>
+          </div>
+          <table><thead><tr><th>SKU</th><th>Peca</th><th>Uso</th><th>Estoque</th><th>Status</th><th>Custo medio</th><th>Preco</th><th>Reposicao</th><th>Acoes</th></tr></thead><tbody>
+            ${rows.map(p => `<tr><td>${p.sku}</td><td><strong>${p.name}</strong><br><span class="muted">${manufacturerName(p.manufacturer_id)} | ${p.category || ''}</span></td><td>${p.usage_type || 'Ambos'}</td><td>${p.stock}/${p.min_stock}</td><td>${stockBadge(p)}</td><td>${money(p.cost)}</td><td><span class="money">${money(p.price)}</span></td><td>${reorderText(p)}</td><td><div class="actions">${can('estoque','editar') ? `<button class="icon-btn" onclick="partForm('${p.id}')" title="Editar">E</button>` : ''} ${can('estoque','excluir') ? `<button class="icon-btn" onclick="removeRecord('parts','${p.id}','parts')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="9">Nenhuma peca encontrada.</td></tr>'}
+          </tbody></table>${pager('parts', list.length, 'renderParts')}
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Fornecedores</h2></div><div class="panel-body">
+          <div class="filters"><input id="supplierSearch" placeholder="Pesquisar fornecedor, documento ou contato" value="${supplierQuery}" oninput="resetPage('suppliers'); renderParts()"><span></span><span></span></div>
+          <table><thead><tr><th>Fornecedor</th><th>Contato</th><th>Observacoes</th></tr></thead><tbody>
+            ${supplierRows.map(s => `<tr><td><strong>${s.name}</strong><br><span class="muted">${s.document || ''}</span></td><td>${s.phone || ''}<br><span class="muted">${s.email || ''}</span></td><td>${s.notes || ''}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nenhum fornecedor cadastrado.</td></tr>'}
+          </tbody></table>${pager('suppliers', state.suppliers.filter(supplier => textMatch(supplier, supplierQuery)).length, 'renderParts')}
+        </div></div>
+        <div class="panel" style="grid-column:1/-1"><div class="panel-head"><h2>Historico de movimentacao</h2>${can('estoque','movimentar') ? '<button class="btn primary" onclick="purchaseForm()">+ Entrada de compra</button>' : ''}</div><div class="panel-body">
+          <div class="filters"><input id="movementSearch" placeholder="Pesquisar peca, motivo ou fornecedor" value="${movementQuery}" oninput="resetPage('movements'); renderParts()"><select id="movementTypeFilter" onchange="resetPage('movements'); renderParts()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(type => `<option ${movementType === type ? 'selected' : ''}>${type}</option>`).join('')}</select><span></span></div>
+          <table><thead><tr><th>Data</th><th>Tipo</th><th>Peca</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>
+            ${movementRows.map(m => `<tr><td>${m.created_at || ''}</td><td>${badge(m.type)}</td><td>${partName(m.part_id)}</td><td>${m.quantity || ''}</td><td>${m.reason || ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma movimentacao registrada.</td></tr>'}
+          </tbody></table>${pager('movements', (state.stock_movements || []).filter(mov => textMatch(mov, movementQuery) && (!movementType || mov.type === movementType)).length, 'renderParts')}
+          <div style="height:16px"></div>
+          <h2>Compras registradas</h2>
+          <table><thead><tr><th>Data</th><th>Fornecedor</th><th>Documento</th><th>Status</th><th>Total</th></tr></thead><tbody>
+            ${(state.purchases || []).slice(0, 10).map(purchase => `<tr><td>${purchase.date}</td><td>${supplierName(purchase.supplier_id)}</td><td>${purchase.document || ''}</td><td>${badge(purchase.status)}</td><td>${money(purchase.total)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma compra registrada.</td></tr>'}
+          </tbody></table>
+        </div></div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function purchaseForm() {
+      const todayValue = new Date().toISOString().slice(0,10);
+      const itemRows = Array.from({ length: 5 }, (_, index) => `
+        <div class="form-grid wide" style="grid-template-columns:2fr 1fr 1fr 1fr;margin-bottom:8px">
+          <label>Peca ${index + 1}<select name="part_id_${index}"><option value="">Selecione</option>${state.parts.map(part => `<option value="${part.id}">${part.name} - ${part.sku}</option>`).join('')}</select></label>
+          <label>Qtd<input name="quantity_${index}" type="number" min="0" value="0"></label>
+          <label>Custo unit.<input name="unit_cost_${index}" type="number" step="0.01" value="0"></label>
+          <label>Lote<input name="lot_${index}" placeholder="Lote"></label>
+        </div>`).join('');
+      formPanel('Entrada de compra', `
+        <label>Fornecedor<select name="supplier_id"><option value="">Sem fornecedor</option>${state.suppliers.map(supplier => `<option value="${supplier.id}">${supplier.name}</option>`).join('')}</select></label>
+        <label>Data<input name="date" type="date" value="${todayValue}"></label>
+        <label>Documento/NF<input name="document" placeholder="NF, pedido ou recibo"></label>
+        <label>Status estoque<select name="status">${['Recebido','Pendente'].map(value => `<option>${value}</option>`).join('')}</select></label>
+        <label>Status financeiro<select name="financial_status">${['Pendente','Pago'].map(value => `<option>${value}</option>`).join('')}</select></label>
+        <label>Pagamento<select name="payment_method"><option value="">Selecione</option>${['Dinheiro','PIX','Cartao','Boleto','Transferencia'].map(value => `<option>${value}</option>`).join('')}</select></label>
+        <label class="wide">Observacoes<textarea name="notes"></textarea></label>
+        <div class="wide"><h2>Itens da compra</h2>${itemRows}</div>
+      `, form => {
+        const data = Object.fromEntries(form.entries());
+        data.items = [];
+        for (let index = 0; index < 5; index++) {
+          if (data[`part_id_${index}`] && Number(data[`quantity_${index}`] || 0) > 0) {
+            data.items.push({ part_id: data[`part_id_${index}`], quantity: Number(data[`quantity_${index}`] || 0), unit_cost: Number(data[`unit_cost_${index}`] || 0), lot: data[`lot_${index}`] || '' });
+          }
+          delete data[`part_id_${index}`];
+          delete data[`quantity_${index}`];
+          delete data[`unit_cost_${index}`];
+          delete data[`lot_${index}`];
+        }
+        return api('/api/purchases', { method:'POST', body: JSON.stringify(data) });
+      }, 'parts');
+    }
+
+    function renderCatalog() {
+      const query = document.getElementById('catalogSearch')?.value || '';
+      const modelQuery = document.getElementById('modelSearch')?.value || '';
+      const modelManufacturer = document.getElementById('modelManufacturerFilter')?.value || '';
+      const modelYear = document.getElementById('modelYearFilter')?.value || '';
+      const manufacturers = state.manufacturers.filter(item => textMatch(item, query));
+      const models = state.models.filter(item => textMatch({...item, manufacturer: manufacturerName(item.manufacturer_id)}, modelQuery) && (!modelManufacturer || item.manufacturer_id === modelManufacturer) && (!modelYear || String(item.year || '') === modelYear));
+      const manufacturerRows = paginate('manufacturers', manufacturers);
+      const modelRows = paginate('models', models);
+      document.getElementById('content').innerHTML = `<div class="grid two">
+        <div class="panel"><div class="panel-head"><h2>Fabricantes</h2>${can('fabricantes','criar') ? '<button class="btn primary" onclick="manufacturerForm()">+ Fabricante</button>' : ''}</div><div class="panel-body">
+          <div class="filters"><input id="catalogSearch" placeholder="Pesquisar fabricante, site ou observacao" value="${query}" oninput="resetPage('manufacturers'); renderCatalog()"><span></span><span></span></div>
+          <table><thead><tr><th>Fabricante</th><th>Suporte</th><th>Site</th><th>Modelos</th><th>Observacoes</th><th>Acoes</th></tr></thead><tbody>
+            ${manufacturerRows.map(m => `<tr><td><strong>${m.name}</strong></td><td>${m.support_phone || ''}</td><td>${m.site || ''}</td><td>${state.models.filter(model => model.manufacturer_id === m.id).length}</td><td>${m.notes || ''}</td><td><div class="actions">${can('fabricantes','editar') ? `<button class="icon-btn" onclick="manufacturerForm('${m.id}')" title="Editar">E</button>` : ''} ${can('fabricantes','excluir') ? `<button class="icon-btn" onclick="removeRecord('manufacturers','${m.id}','catalog')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="6">Nenhum fabricante encontrado.</td></tr>'}
+          </tbody></table>${pager('manufacturers', manufacturers.length, 'renderCatalog')}
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Modelos de produtos</h2>${can('fabricantes','criar') ? '<button class="btn primary" onclick="modelForm()">+ Modelo</button>' : ''}</div><div class="panel-body">
+          <div class="filters"><input id="modelSearch" placeholder="Pesquisar modelo ou fabricante" value="${modelQuery}" oninput="resetPage('models'); renderCatalog()"><select id="modelManufacturerFilter" onchange="resetPage('models'); renderCatalog()"><option value="">Todos fabricantes</option>${state.manufacturers.map(m => `<option value="${m.id}" ${modelManufacturer === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><input id="modelYearFilter" type="number" placeholder="Ano" value="${modelYear}" oninput="resetPage('models'); renderCatalog()"></div>
+          <table><thead><tr><th>Modelo</th><th>Fabricante</th><th>Ano</th><th>Acoes</th></tr></thead><tbody>
+            ${modelRows.map(m => `<tr><td><strong>${m.name}</strong><br><span class="muted">${m.category || ''}</span></td><td>${manufacturerName(m.manufacturer_id)}</td><td>${m.year || ''}</td><td><div class="actions">${can('fabricantes','editar') ? `<button class="icon-btn" onclick="modelForm('${m.id}')" title="Editar">E</button>` : ''} ${can('fabricantes','excluir') ? `<button class="icon-btn" onclick="removeRecord('models','${m.id}','catalog')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="4">Nenhum modelo encontrado.</td></tr>'}
+          </tbody></table>${pager('models', models.length, 'renderCatalog')}
+        </div></div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function renderServices() {
+      const query = document.getElementById('servicesSearch')?.value || '';
+      const list = state.services.filter(service => textMatch(service, query));
+      const rows = paginate('services', list);
+      document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>Tabela de servicos</h2>${can('servicos','criar') ? '<button class="btn primary" onclick="serviceForm()">+ Servico</button>' : ''}</div><div class="panel-body">
+        <div class="filters"><input id="servicesSearch" placeholder="Pesquisar em Tabela de servicos" value="${query}" oninput="resetPage('services'); renderServices()"><span></span><span></span></div>
+        <table><thead><tr><th>Servico</th><th>Categoria</th><th>Valor</th><th>Garantia</th><th>Acoes</th></tr></thead><tbody>
+          ${rows.map(s => `<tr><td><strong>${s.name}</strong><br><span class="muted">${s.category || ''}</span></td><td>${s.category || ''}</td><td><span class="money">${money(s.labor)}</span></td><td>${s.warranty_days} dias</td><td><div class="actions">${can('servicos','editar') ? `<button class="icon-btn" onclick="serviceForm('${s.id}')" title="Editar">E</button>` : ''} ${can('servicos','excluir') ? `<button class="icon-btn" onclick="removeRecord('services','${s.id}','services')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5">Nenhum servico encontrado.</td></tr>'}
+        </tbody></table>${pager('services', list.length, 'renderServices')}
+      </div></div>`;
+      restoreFocus();
+    }
+
+    function renderUsers() {
+      const roleSummary = role => {
+        const permissions = safeJson(role.permissions, {});
+        return Object.entries(permissions).map(([module, actions]) => `${module}: ${actions.join('/')}`).join(' | ');
+      };
+      document.getElementById('content').innerHTML = `<div class="grid">
+        <div class="panel"><div class="panel-head"><h2>Usuarios</h2>${can('configuracoes','editar') ? '<button class="primary" onclick="userForm()">+ Usuario</button>' : ''}</div><div class="panel-body">
+          <table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Acoes</th></tr></thead><tbody>
+            ${state.users.map(u => `<tr><td>${u.name}</td><td>${u.email}</td><td>${u.role_name}</td><td>${u.status}</td><td>${can('configuracoes','editar') ? `<button onclick="userForm('${u.id}')">Editar</button> <button onclick="removeRecord('users','${u.id}','users')">Excluir</button>` : ''}</td></tr>`).join('')}
+          </tbody></table>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Perfis e permissoes</h2>${can('configuracoes','editar') ? '<button class="primary" onclick="roleForm()">+ Perfil</button>' : ''}</div><div class="panel-body">
+          <table><thead><tr><th>Perfil</th><th>Nivel</th><th>Permissoes</th><th>Acoes</th></tr></thead><tbody>
+            ${state.roles.map(r => `<tr><td>${r.name}</td><td>${r.level}</td><td><small>${roleSummary(r)}</small></td><td>${can('configuracoes','editar') ? `<button onclick="roleForm('${r.id}')">Editar</button> <button onclick="removeRecord('roles','${r.id}','users')">Excluir</button>` : ''}</td></tr>`).join('')}
+          </tbody></table>
+        </div></div>
+      </div>`;
+    }
+
+    function formPanel(title, body, onSubmit, backPage) {
+      document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>${title}</h2></div><div class="panel-body">
+        <form class="form-grid" id="genericForm">${body}<div class="actions wide"><button class="primary">Salvar</button><button type="button" onclick="render('${backPage}')">Cancelar</button></div></form>
+      </div></div>`;
+      document.getElementById('genericForm').onsubmit = async event => {
+        event.preventDefault();
+        await onSubmit(new FormData(event.currentTarget));
+        state = await api('/api/bootstrap');
+        render(backPage);
+      };
+    }
+
+    function manufacturerForm(id = '') {
+      const item = state.manufacturers.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar fabricante' : 'Novo fabricante', `
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>Telefone suporte<input name="support_phone" value="${item.support_phone || ''}"></label>
+        <label>Site<input name="site" value="${item.site || ''}"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, form => saveRecord('manufacturers', id, Object.fromEntries(form.entries())), 'catalog');
+    }
+
+    function modelForm(id = '') {
+      const item = state.models.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar modelo' : 'Novo modelo', `
+        <label>Fabricante<select name="manufacturer_id">${state.manufacturers.map(m => `<option value="${m.id}" ${item.manufacturer_id === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>
+        <label>Modelo<input name="name" required value="${item.name || ''}"></label>
+        <label>Categoria<input name="category" value="${item.category || 'Smartphone'}"></label>
+        <label>Ano<input name="year" type="number" value="${item.year || new Date().getFullYear()}"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, form => saveRecord('models', id, Object.fromEntries(form.entries())), 'catalog');
+    }
+
+    function partForm(id = '') {
+      const item = state.parts.find(row => row.id === id) || {};
+      const selected = safeJson(item.compatible_models, []);
+      formPanel(id ? 'Editar peca' : 'Nova peca', `
+        <label>SKU<input name="sku" required value="${item.sku || ''}"></label>
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>Categoria<input name="category" value="${item.category || ''}"></label>
+        <label>Fabricante<select name="manufacturer_id">${state.manufacturers.map(m => `<option value="${m.id}" ${item.manufacturer_id === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>
+        <label>Tipo de uso<select name="usage_type">${['Ambos','OS','Venda'].map(value => `<option ${item.usage_type === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Custo<input name="cost" type="number" step="0.01" value="${item.cost || 0}"></label>
+        <label>Preco<input name="price" type="number" step="0.01" value="${item.price || 0}"></label>
+        <label>Estoque<input name="stock" type="number" value="${item.stock || 0}"></label>
+        <label>Estoque minimo<input name="min_stock" type="number" value="${item.min_stock || 0}"></label>
+        <label>Garantia dias<input name="warranty_days" type="number" value="${item.warranty_days || 90}"></label>
+        <label>Fornecedor<select name="supplier_id"><option value="">Sem fornecedor</option>${state.suppliers.map(s => `<option value="${s.id}" ${item.supplier_id === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}</select></label>
+        <label class="wide">Modelos compativeis
+          <div class="check-list model-list">${state.models.map(m => `<label class="check-row"><input type="checkbox" name="compatible_models" value="${m.id}" ${selected.includes(m.id) ? 'checked' : ''}><span>${manufacturerName(m.manufacturer_id)} - ${m.name}<br><small>${m.year || ''} ${m.category || ''}</small></span></label>`).join('')}</div>
+        </label>
+      `, form => {
+        const data = Object.fromEntries(form.entries());
+        data.compatible_models = form.getAll('compatible_models');
+        return saveRecord('parts', id, data);
+      }, 'parts');
+    }
+
+    function serviceForm(id = '') {
+      const item = state.services.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar servico' : 'Novo servico', `
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>Categoria<input name="category" value="${item.category || ''}"></label>
+        <label>Valor mao de obra<input name="labor" type="number" step="0.01" value="${item.labor || 0}"></label>
+        <label>Garantia dias<input name="warranty_days" type="number" value="${item.warranty_days || 90}"></label>
+        <label>Prazo medio<input name="duration" value="${item.duration || ''}"></label>
+      `, form => saveRecord('services', id, Object.fromEntries(form.entries())), 'services');
+    }
+
+    function passwordForm() {
+      formPanel('Trocar senha', `
+        <label>Senha atual<input name="current_password" type="password" required autocomplete="current-password"></label>
+        <label>Nova senha<input name="new_password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label>Confirmar nova senha<input name="confirm_password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <div class="wide summary-item"><strong>Regra de seguranca</strong><span>Use pelo menos 8 caracteres com letras e numeros.</span></div>
+      `, async form => {
+        await api('/api/me/password', { method:'POST', body: JSON.stringify(Object.fromEntries(form.entries())) });
+        alert('Senha alterada com sucesso.');
+      }, 'settings');
+    }
+
+    function userForm(id = '') {
+      const item = state.users.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar usuario' : 'Novo usuario', `
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>E-mail<input name="email" required value="${item.email || ''}"></label>
+        <label>Perfil<select name="role_id">${state.roles.map(r => `<option value="${r.id}" ${item.role_id === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}</select></label>
+        <label>Status<select name="status">${['Ativo','Inativo','Bloqueado'].map(status => `<option ${item.status === status ? 'selected' : ''}>${status}</option>`).join('')}</select></label>
+        <label class="wide">Senha ${id ? '<span class="muted">preencha apenas se quiser trocar</span>' : '<span class="muted">minimo 8 caracteres com letras e numeros</span>'}<input name="password" type="password" ${id ? '' : 'required'} minlength="8"></label>
+      `, form => saveRecord('users', id, Object.fromEntries(form.entries())), 'users');
+    }
+
+    const permissionModules = [
+      ['clientes', 'Clientes', ['ver','criar','editar','excluir']],
+      ['os', 'Ordens de servico', ['ver','criar','editar','aprovar','finalizar','imprimir','excluir']],
+      ['estoque', 'Pecas e estoque', ['ver','criar','editar','movimentar','excluir']],
+      ['servicos', 'Servicos', ['ver','criar','editar','excluir']],
+      ['pdv', 'PDV', ['ver','criar','editar','excluir']],
+      ['financeiro', 'Financeiro', ['ver','criar','editar','pagar','excluir']],
+      ['relatorios', 'Relatorios', ['ver','exportar']],
+      ['fabricantes', 'Fabricantes e modelos', ['ver','criar','editar','excluir']],
+      ['configuracoes', 'Configuracoes', ['ver','editar']],
+      ['auditoria', 'Auditoria', ['ver','excluir']]
+    ];
+
+    function permissionMatrix(current) {
+      return `<div style="overflow:auto"><table><thead><tr><th>Modulo</th><th>Permissoes</th></tr></thead><tbody>${permissionModules.map(([module, label, actions]) => `
+        <tr><td><strong>${label}</strong><br><small class="muted">${module}</small></td><td>${actions.map(action => `<label style="display:inline-flex;align-items:center;gap:6px;margin:4px 10px 4px 0;text-transform:none;color:var(--ink);font-weight:500"><input type="checkbox" name="perm_${module}" value="${action}" ${(current[module] || []).includes(action) ? 'checked' : ''}> ${action}</label>`).join('')}</td></tr>
+      `).join('')}</tbody></table></div>`;
+    }
+
+    function roleForm(id = '') {
+      const item = state.roles.find(row => row.id === id) || {};
+      const current = safeJson(item.permissions, {});
+      formPanel(id ? 'Editar perfil' : 'Novo perfil', `
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>Nivel<input name="level" type="number" value="${item.level || 0}"></label>
+        <div class="wide"><label>Escala de permissoes</label>${permissionMatrix(current)}</div>
+      `, form => {
+        const data = Object.fromEntries(form.entries());
+        data.permissions = {};
+        permissionModules.forEach(([module]) => {
+          const actions = form.getAll(`perm_${module}`);
+          if (actions.length) data.permissions[module] = actions;
+        });
+        return saveRecord('roles', id, data);
+      }, 'users');
+    }
+
+    async function saveRecord(section, id, data) {
+      await api(`/api/${section}${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
+    }
+
+    async function removeRecord(section, id, page) {
+      if (!confirm('Excluir este registro?')) return;
+      await api(`/api/${section}/${id}`, { method:'DELETE' });
+      state = await api('/api/bootstrap');
+      render(page);
+    }
+
+    function safeJson(value, fallback) {
+      try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+    }
+
+    function posPartOptions(selected = '') {
+      return state.parts.filter(part => (part.usage_type || 'Ambos') !== 'OS').map(part => `<option value="${part.id}" ${selected === part.id ? 'selected' : ''}>${part.name} - ${money(part.price)} | Est. ${part.stock}</option>`).join('');
+    }
+
+    function renderPOS() {
+      const query = document.getElementById('posSearch')?.value || '';
+      const sales = (state.pos_sales || []).filter(sale => textMatch({ ...sale, client: clientName(sale.client_id) }, query));
+      const rows = paginate('pos', sales);
+      const total = sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+      document.getElementById('content').innerHTML = `<div class="grid">
+        <div class="grid kpis">
+          <div class="kpi"><span>Vendas PDV</span><strong>${sales.length}</strong><small>Registros filtrados</small></div>
+          <div class="kpi"><span>Total vendido</span><strong>${money(total)}</strong><small>Receita direta</small></div>
+          <div class="kpi"><span>Acessorios ativos</span><strong>${state.parts.filter(part => (part.usage_type || 'Ambos') !== 'OS').length}</strong><small>Venda ou Ambos</small></div>
+          <div class="kpi"><span>Reposicao</span><strong>${state.parts.filter(part => reorderQty(part) > 0).length}</strong><small>Itens sugeridos</small></div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2>Vendas / PDV</h2>${can('pdv','criar') ? '<button class="btn primary" onclick="posForm()">+ Venda</button>' : ''}</div><div class="panel-body">
+          <div class="filters"><input id="posSearch" placeholder="Pesquisar venda, cliente ou pagamento" value="${query}" oninput="resetPage('pos'); renderPOS()"><span></span><span></span></div>
+          <table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Status</th><th>Total</th></tr></thead><tbody>
+            ${rows.map(sale => `<tr><td><strong>#${sale.number}</strong></td><td>${sale.date}</td><td>${clientName(sale.client_id) || 'Cliente avulso'}</td><td>${sale.payment_method || ''}</td><td>${badge(sale.status)}</td><td>${money(sale.total)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma venda registrada.</td></tr>'}
+          </tbody></table>${pager('pos', sales.length, 'renderPOS')}
+        </div></div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function posForm() {
+      const todayValue = new Date().toISOString().slice(0,10);
+      const itemRows = Array.from({ length: 6 }, (_, index) => `
+        <div class="form-grid wide" style="grid-template-columns:2fr 1fr 1fr;margin-bottom:8px">
+          <label>Item ${index + 1}<select name="part_id_${index}"><option value="">Selecione</option>${posPartOptions()}</select></label>
+          <label>Qtd<input name="quantity_${index}" type="number" min="0" value="0"></label>
+          <label>Preco unit.<input name="unit_price_${index}" type="number" step="0.01" value="0"></label>
+        </div>`).join('');
+      formPanel('Nova venda PDV', `
+        <label>Cliente<select name="client_id"><option value="">Cliente avulso</option>${state.clients.map(client => `<option value="${client.id}">${client.name}</option>`).join('')}</select></label>
+        <label>Data<input name="date" type="date" value="${todayValue}"></label>
+        <label>Forma pagamento<select name="payment_method">${['Dinheiro','PIX','Cartao','Boleto','Transferencia'].map(value => `<option>${value}</option>`).join('')}</select></label>
+        <label>Status<select name="status">${['Recebido','Pendente'].map(value => `<option>${value}</option>`).join('')}</select></label>
+        <label>Desconto<input name="discount" type="number" step="0.01" value="0"></label>
+        <label class="wide">Observacoes<textarea name="notes"></textarea></label>
+        <div class="wide"><h2>Itens da venda</h2>${itemRows}</div>
+      `, form => {
+        const data = Object.fromEntries(form.entries());
+        data.items = [];
+        for (let index = 0; index < 6; index++) {
+          if (data[`part_id_${index}`] && Number(data[`quantity_${index}`] || 0) > 0) {
+            const part = state.parts.find(item => item.id === data[`part_id_${index}`]);
+            data.items.push({ part_id: data[`part_id_${index}`], quantity: Number(data[`quantity_${index}`] || 0), unit_price: Number(data[`unit_price_${index}`] || part?.price || 0) });
+          }
+          delete data[`part_id_${index}`];
+          delete data[`quantity_${index}`];
+          delete data[`unit_price_${index}`];
+        }
+        return api('/api/pos-sales', { method:'POST', body: JSON.stringify(data) });
+      }, 'pos');
+    }
+
+    function renderFinance() {
+      const month = document.getElementById('financeMonth')?.value || monthValue();
+      const monthEntries = state.finance.filter(item => (item.date || '').startsWith(month));
+      const income = monthEntries.filter(item => item.type === 'Entrada').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const expense = monthEntries.filter(item => item.type === 'Saida').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const cardFees = monthEntries.reduce((sum, item) => sum + Number(item.card_fee || 0), 0);
+      const stockCosts = monthEntries.filter(item => item.type === 'Saida' && (item.category || '').toLowerCase().includes('estoque')).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const operatingExpenses = Math.max(0, expense - stockCosts);
+      const query = document.getElementById('financeSearch')?.value || '';
+      const status = document.getElementById('financeStatus')?.value || '';
+      const type = document.getElementById('financeType')?.value || '';
+      const method = document.getElementById('financeMethod')?.value || '';
+      const start = document.getElementById('financeStart')?.value || '';
+      const end = document.getElementById('financeEnd')?.value || '';
+      const list = state.finance.filter(item => textMatch(item, query) && (!type || item.type === type) && (!status || item.status === status) && (!method || item.payment_method === method) && (!start || item.date >= start) && (!end || item.date <= end));
+      const rows = paginate('finance', list);
+      const receivable = state.finance.filter(item => item.type === 'Entrada' && item.status === 'Pendente').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const payable = state.finance.filter(item => item.type === 'Saida' && item.status === 'Pendente').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const todayValue = new Date().toISOString().slice(0,10);
+      const todayEntries = state.finance.filter(item => item.date === todayValue);
+      const todayIncome = todayEntries.filter(item => item.type === 'Entrada' && item.status !== 'Pendente').reduce((sum, item) => sum + financeNet(item), 0);
+      const todayExpense = todayEntries.filter(item => item.type === 'Saida' && item.status !== 'Pendente').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const todayCash = state.cash_sessions.find(item => item.date === todayValue) || {};
+      const expectedCash = Number(todayCash.opening_amount || 0) + todayIncome - todayExpense;
+      const methods = ['Dinheiro','PIX','Cartao','Boleto','Transferencia'];
+      const methodRows = methods.map(pay => {
+        const entries = monthEntries.filter(item => item.payment_method === pay);
+        return {
+          pay,
+          gross: entries.filter(item => item.type === 'Entrada').reduce((sum, item) => sum + Number(item.amount || 0), 0),
+          paid: entries.filter(item => item.type === 'Saida').reduce((sum, item) => sum + Number(item.amount || 0), 0),
+          fee: entries.reduce((sum, item) => sum + Number(item.card_fee || 0), 0),
+          reconciled: entries.filter(item => Number(item.reconciled || 0)).length,
+          total: entries.length
+        };
+      });
+      document.getElementById('content').innerHTML = `<div class="grid">
+        <div class="filters"><input id="financeMonth" type="month" value="${month}" onchange="renderFinance()"><span></span><span></span></div>
+        <div class="grid kpis">
+          <div class="kpi"><span>Entradas</span><strong>${money(income)}</strong><small>Receitas registradas</small></div>
+          <div class="kpi"><span>Saidas</span><strong>${money(expense)}</strong><small>Custos e despesas</small></div>
+          <div class="kpi"><span>Resultado</span><strong>${money(income - expense - cardFees)}</strong><small>Saldo com taxas</small></div>
+          <div class="kpi"><span>A pagar / receber</span><strong>${money(payable)} / ${money(receivable)}</strong><small>Contas em aberto</small></div>
+        </div>
+        <div class="dash-grid">
+          <div class="panel"><div class="panel-head"><h2>Caixa diario</h2>${can('financeiro','pagar') ? `<button class="btn primary" onclick="cashSessionForm('${todayCash.id || ''}')">${todayCash.status === 'Aberto' ? 'Fechar caixa' : 'Abrir caixa'}</button>` : ''}</div><div class="panel-body summary-list">
+            <div class="summary-item"><strong>Status</strong><span>${badge(todayCash.status || 'Nao aberto')}</span></div>
+            <div class="summary-item"><strong>Abertura</strong><span>${money(todayCash.opening_amount || 0)}</span></div>
+            <div class="summary-item"><strong>Movimento do dia</strong><span>${money(todayIncome - todayExpense)}</span></div>
+            <div class="summary-item"><strong>Previsto no caixa</strong><span>${money(expectedCash)}</span></div>
+            ${todayCash.status === 'Fechado' ? `<div class="summary-item"><strong>Diferenca</strong><span>${money(todayCash.difference || 0)}</span></div>` : ''}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Conciliacao por pagamento</h2></div><div class="panel-body summary-list">
+            ${methodRows.map(row => `<div class="summary-item"><strong>${row.pay}</strong><span>${money(row.gross - row.paid - row.fee)} | ${row.reconciled}/${row.total} conc.</span></div>`).join('')}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>DRE mensal</h2></div><div class="panel-body summary-list">
+            <div class="summary-item"><strong>Receita bruta</strong><span>${money(income)}</span></div>
+            <div class="summary-item"><strong>Taxas de cartao</strong><span>${money(cardFees)}</span></div>
+            <div class="summary-item"><strong>Custo de estoque</strong><span>${money(stockCosts)}</span></div>
+            <div class="summary-item"><strong>Despesas operacionais</strong><span>${money(operatingExpenses)}</span></div>
+            <div class="summary-item"><strong>Lucro operacional</strong><span>${money(income - stockCosts - operatingExpenses - cardFees)}</span></div>
+          </div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2>Lancamentos financeiros</h2>${can('financeiro','criar') ? '<button class="btn primary" onclick="financeForm()">+ Lancamento</button>' : ''}</div><div class="panel-body">
+          <div class="filters">
+            <input id="financeSearch" placeholder="Buscar descricao, categoria, forma ou OS" value="${query}" oninput="resetPage('finance'); renderFinance()">
+            <select id="financeType" onchange="resetPage('finance'); renderFinance()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(item => `<option ${type === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+            <select id="financeStatus" onchange="resetPage('finance'); renderFinance()"><option value="">Todos status</option>${['Recebido','Pago','Pendente'].map(item => `<option ${status === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+          </div>
+          <div class="filters">
+            <select id="financeMethod" onchange="resetPage('finance'); renderFinance()"><option value="">Todas formas</option>${['Dinheiro','PIX','Cartao','Boleto','Transferencia'].map(item => `<option ${method === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+            <input id="financeStart" type="date" value="${start}" onchange="resetPage('finance'); renderFinance()">
+            <input id="financeEnd" type="date" value="${end}" onchange="resetPage('finance'); renderFinance()">
+          </div>
+          <table><thead><tr><th>Data</th><th>Tipo</th><th>Descricao</th><th>Status</th><th>Pagamento</th><th>Valor</th><th>Taxa</th><th>Liquido</th><th>Conc.</th><th>Acoes</th></tr></thead><tbody>
+            ${rows.map(item => `<tr><td>${item.date}<br><span class="muted">Venc. ${item.due_date || ''}</span></td><td>${badge(item.type)}</td><td><strong>${item.description}</strong><br><span class="muted">${item.category || ''}${item.installments > 1 ? ` | Parcela ${item.installment}/${item.installments}` : ''}</span></td><td>${badge(item.status)}</td><td>${item.payment_method || ''}</td><td><span class="money">${money(item.amount)}</span></td><td>${money(item.card_fee || 0)}</td><td>${money(financeNet(item))}</td><td>${Number(item.reconciled || 0) ? badge('Pago') : badge('Pendente')}</td><td><div class="actions">${can('financeiro','editar') ? `<button class="icon-btn" onclick="financeForm('${item.id}')" title="Editar">E</button>` : ''} ${can('financeiro','excluir') ? `<button class="icon-btn" onclick="removeRecord('finance','${item.id}','finance')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="10">Nenhum lancamento.</td></tr>'}
+          </tbody></table>${pager('finance', list.length, 'renderFinance')}
+        </div></div>
+      </div>`;
+      restoreFocus();
+    }
+
+    function financeForm(id = '') {
+      const item = state.finance.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar lancamento' : 'Novo lancamento', `
+        <label>Tipo<select name="type">${['Entrada','Saida'].map(value => `<option ${item.type === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Status<select name="status">${['Recebido','Pago','Pendente'].map(value => `<option ${item.status === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Data<input name="date" type="date" value="${item.date || new Date().toISOString().slice(0,10)}"></label>
+        <label>Vencimento<input name="due_date" type="date" value="${item.due_date || item.date || new Date().toISOString().slice(0,10)}"></label>
+        <label>Categoria<input name="category" value="${item.category || ''}"></label>
+        <label>Forma pagamento<select name="payment_method"><option value="">Selecione</option>${['Dinheiro','PIX','Cartao','Boleto','Transferencia'].map(value => `<option ${item.payment_method === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Valor<input name="amount" type="number" step="0.01" value="${item.amount || 0}"></label>
+        <label>Taxa cartao<input name="card_fee" type="number" step="0.01" value="${item.card_fee || 0}"></label>
+        <label>Vincular OS<select name="order_id"><option value="">Sem OS</option>${state.orders.map(order => `<option value="${order.id}" ${item.order_id === order.id ? 'selected' : ''}>OS #${order.number} - ${order.client_name}</option>`).join('')}</select></label>
+        <label>Caixa diario<select name="cash_session_id"><option value="">Sem caixa</option>${state.cash_sessions.map(session => `<option value="${session.id}" ${item.cash_session_id === session.id ? 'selected' : ''}>${session.date} - ${session.status}</option>`).join('')}</select></label>
+        <label>Recorrencia<select name="recurrence_frequency"><option value="">Nao recorrente</option>${['Mensal','Semanal','Anual'].map(value => `<option ${item.recurrence_frequency === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Parcelas<input name="installments" type="number" min="1" value="${item.installments || 1}"></label>
+        <label>Recorrente ate<input name="recurrence_until" type="date" value="${item.recurrence_until || ''}"></label>
+        <label class="check-row"><input name="reconciled" type="checkbox" value="1" ${Number(item.reconciled || 0) ? 'checked' : ''}><span>Conciliado<br><small>Marque quando conferido no banco, cartao ou caixa.</small></span></label>
+        <label class="wide">Descricao<textarea name="description">${item.description || ''}</textarea></label>
+      `, form => {
+        const data = Object.fromEntries(form.entries());
+        data.reconciled = form.get('reconciled') ? 1 : 0;
+        return saveRecord('finance', id, data);
+      }, 'finance');
+    }
+
+    function cashSessionForm(id = '') {
+      const todayValue = new Date().toISOString().slice(0,10);
+      const item = state.cash_sessions.find(row => row.id === id) || state.cash_sessions.find(row => row.date === todayValue) || {};
+      const dayEntries = state.finance.filter(row => row.date === (item.date || todayValue) && row.status !== 'Pendente');
+      const received = dayEntries.filter(row => row.type === 'Entrada').reduce((sum, row) => sum + financeNet(row), 0);
+      const paid = dayEntries.filter(row => row.type === 'Saida').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const expected = Number(item.opening_amount || 0) + received - paid;
+      formPanel(item.id ? 'Fechamento do caixa diario' : 'Abertura do caixa diario', `
+        <label>Data<input name="date" type="date" value="${item.date || todayValue}"></label>
+        <label>Status<select name="status">${['Aberto','Fechado'].map(value => `<option ${item.status === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Valor de abertura<input name="opening_amount" type="number" step="0.01" value="${item.opening_amount || 0}"></label>
+        <label>Valor contado no fechamento<input name="closing_amount" type="number" step="0.01" value="${item.closing_amount || expected}"></label>
+        <label>Valor previsto<input name="expected_amount" type="number" step="0.01" value="${item.expected_amount || expected}"></label>
+        <label>Movimento calculado<input disabled value="${money(received - paid)}"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, form => saveRecord('cash-sessions', item.id || '', Object.fromEntries(form.entries())), 'finance');
+    }
+
+    function reportDateFilter(rows, field = 'date') {
+      const start = document.getElementById('reportStart')?.value || '';
+      const end = document.getElementById('reportEnd')?.value || '';
+      return rows.filter(row => (!start || (row[field] || row.opened || '') >= start) && (!end || (row[field] || row.opened || '') <= end));
+    }
+
+    function sumBy(rows, keyFn, seedFn, addFn) {
+      const map = new Map();
+      rows.forEach(row => {
+        const key = keyFn(row) || 'Nao informado';
+        if (!map.has(key)) map.set(key, seedFn(key));
+        addFn(map.get(key), row);
+      });
+      return Array.from(map.values());
+    }
+
+    function reportLabel(type) {
+      return {
+        clients: 'Clientes',
+        orders: 'Ordens de Servico',
+        parts: 'Estoque baixo',
+        turnover: 'Giro de estoque',
+        finance: 'Financeiro',
+        dre: 'DRE mensal',
+        technician_profit: 'Lucro por tecnico',
+        warranty_returns: 'Garantia e retorno',
+        top_services: 'Servicos mais vendidos',
+        top_parts: 'Pecas mais usadas',
+        manufacturers: 'Fabricantes',
+        services: 'Servicos'
+      }[type] || type;
+    }
+
+    function reportRows(type) {
+      if (type === 'orders') return reportDateFilter(state.orders, 'opened').map(order => ({
+        OS: order.number, Cliente: order.client_name, Fabricante: order.device_brand, Modelo: order.device_model, IMEI: order.device_imei,
+        Status: order.status, Aprovacao: order.approval_status, Prioridade: order.priority, Abertura: order.opened, Prazo: order.due,
+        Tecnico: order.technician_name, Defeito: order.defect, Diagnostico: order.diagnosis, Solucao: order.solution,
+        Total: order.calc?.total || 0, Pago: order.calc?.paid || 0, Saldo: order.calc?.balance || 0
+      }));
+      if (type === 'finance') return reportDateFilter(state.finance, 'date').map(item => ({
+        Data: item.date, Vencimento: item.due_date, Tipo: item.type, Categoria: item.category, Descricao: item.description,
+        Valor: item.amount, Taxa_cartao: item.card_fee || 0, Liquido: financeNet(item), Status: item.status, Pagamento: item.payment_method,
+        Conciliado: Number(item.reconciled || 0) ? 'Sim' : 'Nao', Recorrencia: item.recurrence_frequency || '', Parcela: item.installments > 1 ? `${item.installment}/${item.installments}` : '', OS: item.order_id || ''
+      }));
+      if (type === 'dre') {
+        const financeRows = reportDateFilter(state.finance, 'date');
+        const income = financeRows.filter(row => row.type === 'Entrada').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        const expense = financeRows.filter(row => row.type === 'Saida').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        const fees = financeRows.reduce((sum, row) => sum + Number(row.card_fee || 0), 0);
+        const stockCosts = financeRows.filter(row => row.type === 'Saida' && (row.category || '').toLowerCase().includes('estoque')).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        const operating = Math.max(0, expense - stockCosts);
+        return [
+          { Linha: 'Receita bruta', Valor: income },
+          { Linha: 'Taxas de cartao', Valor: -fees },
+          { Linha: 'Custo de estoque', Valor: -stockCosts },
+          { Linha: 'Despesas operacionais', Valor: -operating },
+          { Linha: 'Lucro operacional', Valor: income - fees - stockCosts - operating }
+        ];
+      }
+      if (type === 'technician_profit') return sumBy(reportDateFilter(state.orders, 'opened'), order => order.technician_name || 'Sem tecnico', name => ({
+        Tecnico: name, OS: 0, Receita: 0, Custo_pecas: 0, Mao_de_obra: 0, Lucro: 0, Margem: '0%'
+      }), (acc, order) => {
+        const partCost = (order.parts || []).reduce((sum, part) => sum + Number(part.unit_cost || 0) * Number(part.quantity || 1), 0);
+        const labor = (order.services || []).reduce((sum, service) => sum + Number(service.labor || 0), 0);
+        const total = Number(order.calc?.total || 0);
+        acc.OS += 1;
+        acc.Receita += total;
+        acc.Custo_pecas += partCost;
+        acc.Mao_de_obra += labor;
+        acc.Lucro += total - partCost;
+        acc.Margem = acc.Receita ? `${((acc.Lucro / acc.Receita) * 100).toFixed(1)}%` : '0%';
+      }).sort((a,b) => b.Lucro - a.Lucro);
+      if (type === 'warranty_returns') return reportDateFilter(state.orders, 'opened').filter(order => {
+        const text = `${order.follow_up || ''} ${order.warranty_term || ''} ${order.status || ''}`.toLowerCase();
+        return text.includes('retorno') || text.includes('garantia') || text.includes('pos-venda') || text.includes('pós-venda') || (order.parts || []).some(part => Number(part.warranty_days || 0) > 0) || (order.services || []).some(service => Number(service.warranty_days || 0) > 0);
+      }).map(order => {
+        const maxWarranty = Math.max(0, ...(order.parts || []).map(part => Number(part.warranty_days || 0)), ...(order.services || []).map(service => Number(service.warranty_days || 0)));
+        return {
+          OS: order.number, Cliente: order.client_name, Aparelho: `${order.device_brand || ''} ${order.device_model || ''}`.trim(),
+          Status: order.status, Abertura: order.opened, Entrega: order.delivery_signed_at || '', Garantia_dias: maxWarranty || 90,
+          Tecnico: order.technician_name || '', Pos_venda: order.follow_up || '', Total: order.calc?.total || 0
+        };
+      });
+      if (type === 'top_services') return sumBy(reportDateFilter(state.orders, 'opened').flatMap(order => (order.services || []).map(service => ({ order, service }))), item => item.service.name, name => ({
+        Servico: name, Quantidade: 0, Receita: 0, Garantia_media: 0
+      }), (acc, item) => {
+        acc.Quantidade += 1;
+        acc.Receita += Number(item.service.labor || 0);
+        acc.Garantia_media = Math.round(((acc.Garantia_media * (acc.Quantidade - 1)) + Number(item.service.warranty_days || 0)) / acc.Quantidade);
+      }).sort((a,b) => b.Quantidade - a.Quantidade || b.Receita - a.Receita);
+      if (type === 'top_parts') return sumBy(reportDateFilter(state.orders, 'opened').flatMap(order => (order.parts || []).map(part => ({ order, part }))), item => item.part.name, name => ({
+        Peca: name, SKU: '', Quantidade: 0, Receita: 0, Custo: 0, Lucro: 0
+      }), (acc, item) => {
+        const qty = Number(item.part.quantity || 1);
+        acc.SKU = item.part.sku || acc.SKU;
+        acc.Quantidade += qty;
+        acc.Receita += Number(item.part.unit_price || 0) * qty;
+        acc.Custo += Number(item.part.unit_cost || 0) * qty;
+        acc.Lucro = acc.Receita - acc.Custo;
+      }).sort((a,b) => b.Quantidade - a.Quantidade || b.Lucro - a.Lucro);
+      if (type === 'parts') return state.parts.filter(part => Number(part.stock || 0) <= Number(part.min_stock || 0)).map(part => ({
+        SKU: part.sku, Peca: part.name, Categoria: part.category, Fabricante: manufacturerName(part.manufacturer_id),
+        Uso: part.usage_type || 'Ambos', Estoque: part.stock, Minimo: part.min_stock, Custo_medio: part.cost, Preco: part.price, Sugestao_compra: reorderQty(part)
+      }));
+      if (type === 'turnover') return state.parts.map(part => {
+        const saidas = (state.stock_movements || []).filter(mov => mov.part_id === part.id && mov.type === 'Saida').reduce((sum, mov) => sum + Number(mov.quantity || 0), 0);
+        const entradas = (state.stock_movements || []).filter(mov => mov.part_id === part.id && mov.type === 'Entrada').reduce((sum, mov) => sum + Number(mov.quantity || 0), 0);
+        return {
+          SKU: part.sku, Item: part.name, Uso: part.usage_type || 'Ambos', Estoque_atual: part.stock, Entradas: entradas, Saidas: saidas,
+          Giro: saidas > 0 ? 'Com giro' : 'Parado', Sugestao_compra: reorderQty(part), Custo_medio: part.cost, Preco: part.price
+        };
+      });
+      if (type === 'services') return state.services.map(service => ({
+        Servico: service.name, Categoria: service.category, Mao_de_obra: service.labor, Garantia_dias: service.warranty_days, Prazo: service.duration
+      }));
+      if (type === 'clients') return state.clients.map(client => ({
+        Nome: client.name, Telefone: client.phone, Email: client.email, Documento: client.document, CEP: client.zip,
+        Logradouro: client.street, Numero: client.number, Bairro: client.neighborhood, Cidade: client.city, UF: client.state, Complemento: client.complement, Observacoes: client.notes
+      }));
+      if (type === 'manufacturers') return state.models.map(model => ({
+        Fabricante: manufacturerName(model.manufacturer_id), Modelo: model.name, Categoria: model.category, Ano: model.year, Observacoes: model.notes
+      }));
+      return [];
+    }
+
+    function renderReports() {
+      const start = document.getElementById('reportStart')?.value || '';
+      const end = document.getElementById('reportEnd')?.value || '';
+      const orderRows = reportRows('orders');
+      const financeRows = reportRows('finance');
+      const lowPartsRows = reportRows('parts');
+      const turnoverRows = reportRows('turnover');
+      const technicianRows = reportRows('technician_profit');
+      const warrantyRows = reportRows('warranty_returns');
+      const topServiceRows = reportRows('top_services');
+      const topPartRows = reportRows('top_parts');
+      const income = financeRows.filter(row => row.Tipo === 'Entrada').reduce((sum, row) => sum + Number(row.Valor || 0), 0);
+      const expense = financeRows.filter(row => row.Tipo === 'Saida').reduce((sum, row) => sum + Number(row.Valor || 0), 0);
+      const statusCounts = orderRows.reduce((acc, row) => (acc[row.Status] = (acc[row.Status] || 0) + 1, acc), {});
+      const reportTypes = ['clients','orders','finance','dre','technician_profit','warranty_returns','top_services','top_parts','parts','turnover','manufacturers','services'];
+      document.getElementById('content').innerHTML = `<div class="grid">
+        <div class="panel"><div class="panel-head"><h2>Relatorios e exportacao</h2><span class="muted">${start || end ? `Periodo: ${start || 'inicio'} ate ${end || 'hoje'}` : 'Sem filtro de data'}</span></div><div class="panel-body">
+          <div class="report-period">
+            <label>Data inicial<input id="reportStart" type="date" value="${start}" onchange="renderReports()"></label>
+            <label>Data final<input id="reportEnd" type="date" value="${end}" onchange="renderReports()"></label>
+            <label>&nbsp;<button class="btn primary" onclick="renderReports()">Aplicar periodo</button></label>
+            <label>&nbsp;<button class="btn" onclick="document.getElementById('reportStart').value='';document.getElementById('reportEnd').value='';renderReports()">Limpar filtro</button></label>
+          </div>
+          <div class="export-grid">
+            ${reportTypes.map(type => `<div class="summary-item"><strong>${reportLabel(type)}</strong><span class="actions"><button class="icon-btn" onclick="exportReport('${type}','excel')" title="Baixar Excel">XLS</button><button class="icon-btn" onclick="exportReport('${type}','pdf')" title="Exportar PDF">PDF</button></span></div>`).join('')}
+          </div>
+          <div style="height:14px"></div>
+          <div class="grid kpis">
+            <div class="kpi"><span>Fluxo de caixa</span><strong>${money(income - expense)}</strong><small>Entradas menos saidas</small></div>
+            <div class="kpi"><span>Resultado mensal</span><strong>${money(income - expense)}</strong><small>DRE simples do periodo</small></div>
+            <div class="kpi"><span>Lucro por tecnico</span><strong>${money(technicianRows.reduce((sum, row) => sum + Number(row.Lucro || 0), 0))}</strong><small>${technicianRows.length} tecnico(s)</small></div>
+            <div class="kpi"><span>Garantias/retornos</span><strong>${warrantyRows.length}</strong><small>OS com garantia ou pos-venda</small></div>
+          </div>
+        </div></div>
+        <div class="dash-grid">
+          <div class="panel"><div class="panel-head"><h2>Status das OS</h2></div><div class="panel-body">${Object.entries(statusCounts).map(([name, count]) => `<div class="summary-item"><strong>${name}</strong><span>${count}</span></div>`).join('') || '<div class="empty">Sem OS no periodo.</div>'}</div></div>
+          <div class="panel"><div class="panel-head"><h2>Resultado financeiro</h2></div><div class="panel-body">
+            <div class="summary-item"><strong>Entradas</strong><span>${money(income)}</span></div>
+            <div class="summary-item"><strong>Saidas</strong><span>${money(expense)}</span></div>
+            <div class="summary-item"><strong>Resultado</strong><span>${money(income - expense)}</span></div>
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Giro de estoque</h2></div><div class="panel-body">
+            ${turnoverRows.sort((a,b) => Number(b.Saidas || 0) - Number(a.Saidas || 0)).slice(0, 8).map(row => `<div class="summary-item"><strong>${row.Item}</strong><span>${row.Saidas} saidas | estoque ${row.Estoque_atual} | comprar ${row.Sugestao_compra}</span></div>`).join('') || '<div class="empty">Sem movimentacao de estoque.</div>'}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Lucro por tecnico</h2></div><div class="panel-body">
+            ${technicianRows.slice(0, 6).map(row => `<div class="summary-item"><strong>${row.Tecnico}</strong><span>${money(row.Lucro)} | ${row.OS} OS | margem ${row.Margem}</span></div>`).join('') || '<div class="empty">Sem tecnico no periodo.</div>'}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Servicos mais vendidos</h2></div><div class="panel-body">
+            ${topServiceRows.slice(0, 6).map(row => `<div class="summary-item"><strong>${row.Servico}</strong><span>${row.Quantidade} venda(s) | ${money(row.Receita)}</span></div>`).join('') || '<div class="empty">Sem servicos no periodo.</div>'}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Pecas mais usadas</h2></div><div class="panel-body">
+            ${topPartRows.slice(0, 6).map(row => `<div class="summary-item"><strong>${row.Peca}</strong><span>${row.Quantidade} un. | lucro ${money(row.Lucro)}</span></div>`).join('') || '<div class="empty">Sem pecas no periodo.</div>'}
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Garantia e retorno</h2></div><div class="panel-body">
+            ${warrantyRows.slice(0, 6).map(row => `<div class="summary-item"><strong>OS #${row.OS} - ${row.Cliente}</strong><span>${row.Status} | garantia ${row.Garantia_dias} dias</span></div>`).join('') || '<div class="empty">Sem retorno/garantia no periodo.</div>'}
+          </div></div>
+        </div>
+      </div>`;
+    }
+
+    function exportReport(type, format = 'excel') {
+      const rows = reportRows(type);
+      if (!rows.length) return alert('Nao ha dados para exportar.');
+      if (format === 'pdf') return exportPdf(`relatorio-${type}`, rows, reportLabel(type));
+      exportExcel(`relatorio-${type}`, rows);
+    }
+
+    function exportExcel(name, rows) {
+      const columns = Object.keys(rows[0] || {});
+      const html = `<table><thead><tr>${columns.map(column => `<th>${column}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${String(row[column] ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      const blob = new Blob([`\ufeff${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${name}-${new Date().toISOString().slice(0,10)}.xls`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function exportPdf(name, rows, title) {
+      const columns = Object.keys(rows[0] || {});
+      const company = state.company || {};
+      const start = document.getElementById('reportStart')?.value || '';
+      const end = document.getElementById('reportEnd')?.value || '';
+      const period = start || end ? `${start || 'inicio'} ate ${end || 'hoje'}` : 'Sem filtro de data';
+      const table = `<table><thead><tr>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${escapeHtml(row[column])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+        @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#111827;margin:0;font-size:11px}header{display:flex;align-items:center;gap:12px;border-bottom:3px solid ${company.primary_color || '#f9732f'};padding-bottom:10px;margin-bottom:12px}img{width:52px;height:52px;object-fit:contain}h1{font-size:20px;margin:0}p{margin:3px 0;color:#667085}.meta{margin-left:auto;text-align:right}table{width:100%;border-collapse:collapse}th{background:#f4f6f8;color:#667085;text-align:left;font-size:10px;text-transform:uppercase}th,td{border-bottom:1px solid #d9e0e8;padding:6px;vertical-align:top}tbody tr:nth-child(even){background:#fafafa}.footer{margin-top:14px;color:#667085;font-size:10px}
+      </style></head><body>
+        <header><img src="${company.logo_path || '/troca-ae-logo.jpg'}"><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(company.trade_name || company.system_name || 'Troca Ae SIS PRO')}</p><p>${escapeHtml(company.phone || '')} ${escapeHtml(company.email || '')}</p></div><div class="meta"><strong>${escapeHtml(period)}</strong><p>Gerado em ${new Date().toLocaleString('pt-BR')}</p><p>${rows.length} registro(s)</p></div></header>
+        ${table}
+        <div class="footer">${escapeHtml(company.print_footer || '')}</div>
+        <script>window.onload=()=>{setTimeout(()=>window.print(),250)}<\/script>
+      </body></html>`;
+      const win = window.open('', '_blank');
+      if (!win) return alert('Permita pop-ups para gerar o PDF.');
+      win.document.write(html);
+      win.document.close();
+    }
+
+    function renderSettings() {
+      const c = state.company || {};
+      if (!selectedUserId || !state.users.some(user => user.id === selectedUserId)) selectedUserId = state.users[0]?.id || '';
+      const selectedUser = state.users.find(user => user.id === selectedUserId);
+      document.getElementById('content').innerHTML = `<div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Dados da empresa e marca</h2>${can('configuracoes','editar') ? '<button class="btn primary" onclick="saveCompanySettings()">Salvar alteracoes</button>' : ''}</div><div class="panel-body">
+        <form class="form-grid" id="companyForm">
+          <label>Nome do sistema<input name="system_name" value="${c.system_name || ''}"></label>
+          <label>Nome fantasia<input name="trade_name" value="${c.trade_name || ''}"></label>
+          <label>Razao social<input name="legal_name" value="${c.legal_name || ''}"></label>
+          <label>CNPJ/Documento<input name="document" value="${c.document || ''}"></label>
+          <label>Telefone<input name="phone" value="${c.phone || ''}"></label>
+          <label>E-mail<input name="email" value="${c.email || ''}"></label>
+          <label>CEP<input name="zip" value="${c.zip || ''}"></label>
+          <label>Logradouro<input name="street" value="${c.street || ''}"></label>
+          <label>Numero<input name="number" value="${c.number || ''}"></label>
+          <label>Bairro<input name="neighborhood" value="${c.neighborhood || ''}"></label>
+          <label>Cidade<input name="city" value="${c.city || ''}"></label>
+          <label>UF<input name="state" value="${c.state || ''}"></label>
+          <label>Cor principal<input name="primary_color" type="color" value="${c.primary_color || '#f9732f'}"></label>
+          <label>Cor lateral<input name="dark_color" type="color" value="${c.dark_color || '#18231f'}"></label>
+          <label>Tema<select name="theme"><option value="light" ${c.theme !== 'dark' ? 'selected' : ''}>Claro</option><option value="dark" ${c.theme === 'dark' ? 'selected' : ''}>Escuro</option></select></label>
+          <label class="wide">Logo do sistema
+            <input id="companyLogoPath" name="logo_path" value="${c.logo_path || '/troca-ae-logo.jpg'}">
+            <div class="actions">
+              <button class="btn" type="button" onclick="document.getElementById('companyLogoFile').click()">Upload da logo</button>
+              <button class="btn" type="button" onclick="document.getElementById('companyLogoPath').value='/troca-ae-logo.jpg';document.getElementById('companyLogoPreview').src='/troca-ae-logo.jpg'">Usar logo Troca Ae</button>
+            </div>
+            <input id="companyLogoFile" type="file" accept="image/*" class="hidden" onchange="readLogoFile(this)">
+            <img id="companyLogoPreview" src="${c.logo_path || '/troca-ae-logo.jpg'}" alt="Logo" style="width:86px;height:86px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:white;padding:6px">
+          </label>
+          <label class="wide">Rodape da OS<textarea name="print_footer">${c.print_footer || ''}</textarea></label>
+          <label class="wide">Termo de garantia padrao<textarea name="warranty_term" style="min-height:190px">${c.warranty_term || ''}</textarea></label>
+        </form>
+      </div></div>
+      <div class="grid two">
+        <div class="panel"><div class="panel-head"><h2>Usuarios</h2>${can('configuracoes','editar') ? '<button class="btn primary" onclick="userForm()">+ Usuario</button>' : ''}</div><div class="panel-body">
+          <table><thead><tr><th>Usuario</th><th>Perfil</th><th>Status</th><th>Seguranca</th><th>Acoes</th></tr></thead><tbody>
+            ${state.users.map(u => `<tr class="${u.id === selectedUserId ? 'selected-row' : ''}" onclick="selectUserForPermissions('${u.id}')"><td><strong>${u.name}</strong><br><span class="muted">${u.email}</span></td><td>${u.role_name}</td><td>${badge(u.status)}</td><td>${userSecurityInfo(u)}</td><td><div class="actions">${can('configuracoes','editar') ? `${u.locked_until ? `<button class="btn" onclick="event.stopPropagation();unlockUser('${u.id}')">Desbloquear</button>` : ''} <button class="btn" onclick="event.stopPropagation();selectUserForPermissions('${u.id}')">Ver permissoes</button> <button class="icon-btn" onclick="event.stopPropagation();userForm('${u.id}')" title="Editar">E</button> <button class="icon-btn" onclick="event.stopPropagation();removeRecord('users','${u.id}','settings')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum usuario cadastrado.</td></tr>'}
+          </tbody></table>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Escala de permissoes</h2>${can('configuracoes','editar') ? '<button class="btn primary" onclick="roleForm()">+ Perfil</button>' : ''}</div><div class="panel-body">
+          ${selectedUser ? permissionMatrixForUser(selectedUser) : '<div class="empty">Selecione um usuario para ver permissoes.</div>'}
+        </div></div>
+        <div class="panel" style="grid-column:1/-1"><div class="panel-head"><h2>Backup e seguranca</h2>${can('configuracoes','editar') ? '<button class="btn primary" onclick="createBackup()">Criar backup agora</button>' : ''}</div><div class="panel-body">
+          <div class="grid two">
+            <div class="summary-item"><strong>Banco de dados</strong><span>${(state.database?.engine || 'sqlite').toUpperCase()} ${state.database?.production ? 'producao' : 'local'}</span></div>
+            <div class="summary-item"><strong>Backup automatico diario</strong><span>Ativo ao iniciar o sistema</span></div>
+          </div>
+          <div id="backupList" class="muted">Carregando backups...</div>
+        </div></div>
+      </div>`;
+      loadBackups();
+    }
+
+    function selectUserForPermissions(id) {
+      selectedUserId = id;
+      renderSettings();
+    }
+
+    function userSecurityInfo(user) {
+      const locked = user.locked_until ? `<br><strong>Bloqueio:</strong> ${user.locked_until}` : '';
+      const changed = user.password_changed_at ? `<br><strong>Senha:</strong> ${user.password_changed_at}` : '';
+      return `<small><strong>Ultimo login:</strong> ${user.last_login || 'Nunca'}<br><strong>Tentativas:</strong> ${user.failed_attempts || 0}${locked}${changed}</small>`;
+    }
+
+    async function unlockUser(id) {
+      await api(`/api/users/${id}/unlock`, { method:'POST', body: JSON.stringify({}) });
+      state = await api('/api/bootstrap');
+      renderSettings();
+    }
+
+    function permissionMatrixForUser(user) {
+      const role = state.roles.find(item => item.id === user.role_id);
+      if (!role) return '<div class="empty">Perfil nao encontrado.</div>';
+      const permissions = safeJson(role.permissions, {});
+      return `<div style="margin-bottom:12px"><strong>${user.name}</strong><br><span class="muted">${user.email} - ${role.name} - nivel ${role.level}</span></div>${permissionMatrix(permissions, false)}`;
+    }
+
+    async function saveCompanySettings() {
+      const data = Object.fromEntries(new FormData(document.getElementById('companyForm')).entries());
+      state.company = await api('/api/company', { method:'POST', body: JSON.stringify(data) });
+      applyBranding();
+      alert('Configuracoes salvas.');
+      renderSettings();
+    }
+
+    function fileSize(bytes) {
+      const value = Number(bytes || 0);
+      if (value > 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+      if (value > 1024) return `${(value / 1024).toFixed(1)} KB`;
+      return `${value} bytes`;
+    }
+
+    async function loadBackups() {
+      const target = document.getElementById('backupList');
+      if (!target) return;
+      try {
+        const backups = await api('/api/backups');
+        target.innerHTML = `<table><thead><tr><th>Arquivo</th><th>Data</th><th>Tamanho</th><th>Acoes</th></tr></thead><tbody>
+          ${backups.map(item => `<tr><td><strong>${item.name}</strong></td><td>${item.created_at}</td><td>${fileSize(item.size)}</td><td><div class="actions"><button class="btn" onclick="downloadBackup('${item.name}')">Baixar</button>${can('configuracoes','editar') ? `<button class="btn" onclick="restoreBackup('${item.name}')">Restaurar</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nenhum backup encontrado.</td></tr>'}
+        </tbody></table>`;
+      } catch (error) {
+        target.textContent = error.message;
+      }
+    }
+
+    async function createBackup() {
+      await api('/api/backups', { method:'POST', body: JSON.stringify({}) });
+      alert('Backup criado com sucesso.');
+      loadBackups();
+    }
+
+    async function downloadBackup(name) {
+      const response = await fetch(`/api/backups/download?name=${encodeURIComponent(name)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!response.ok) return alert('Nao foi possivel baixar o backup.');
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    async function restoreBackup(name) {
+      const localMode = (state.database?.engine || 'sqlite') === 'sqlite';
+      const message = localMode
+        ? `Preparar a restauracao do backup ${name}? O sistema vai criar um backup de seguranca e aplicar a restauracao quando for reiniciado.`
+        : `Restaurar o backup ${name}? O sistema vai criar um backup de seguranca antes da restauracao, mas os dados atuais serao substituidos.`;
+      if (!confirm(message)) return;
+      const result = await api('/api/backups/restore', { method:'POST', body: JSON.stringify({ name }) });
+      if (result.restart_required) {
+        alert('Restauracao preparada. Feche e abra o sistema novamente para aplicar o backup.');
+      } else {
+        alert('Backup restaurado com sucesso. O sistema sera recarregado.');
+        location.reload();
+      }
+    }
+
+    function clientName(id) {
+      return state.clients.find(c => c.id === id)?.name || '';
+    }
+
+    function manufacturerName(id) {
+      return state.manufacturers.find(m => m.id === id)?.name || '';
+    }
+
+    function partName(id) {
+      return state.parts.find(part => part.id === id)?.name || '';
+    }
+
+    if (token) boot().catch(() => logout());
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
+
