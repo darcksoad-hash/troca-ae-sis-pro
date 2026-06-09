@@ -2,26 +2,14 @@ services:
   - type: web
     name: troca-ae-sis-pro
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python server.py
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: troca-ae-postgres
-          property: connectionString
+        sync: false
       - key: HOST
         value: 0.0.0.0
-      - key: APP_STORAGE_ROOT
-        value: /var/data
       - key: APP_ENV
         value: production
-    disk:
-      name: troca-ae-storage
-      mountPath: /var/data
-      sizeGB: 1
-
-databases:
-  - name: troca-ae-postgres
-    databaseName: troca_ae
-    user: troca_ae

@@ -47,14 +47,16 @@ Opcoes boas:
 - Render, Railway, Fly.io ou similar.
 - Docker com PostgreSQL separado.
 
-## Deploy recomendado na Render
+## Deploy gratuito recomendado na Render
 
 Arquivos ja preparados:
 
-- `render.yaml`: cria o Web Service, PostgreSQL e disco persistente.
+- `render.yaml`: cria somente o Web Service gratuito.
 - `runtime.txt`: fixa a versao do Python.
 - `.env.example`: mostra as variaveis para local/producao.
 - `/api/health`: rota de monitoramento usada pela Render.
+
+Para manter sem pagamento na Render, o banco deve ficar fora da Render, em um PostgreSQL gratuito como Neon ou Supabase. Nao use disco persistente da Render no plano gratis.
 
 Na Render:
 
@@ -62,17 +64,14 @@ Na Render:
 2. Usar "New" > "Blueprint".
 3. Selecionar o repositorio.
 4. Confirmar o `render.yaml`.
-5. Aguardar criar:
-   - `troca-ae-sis-pro`
-   - `troca-ae-postgres`
-   - disco persistente em `/var/data`
+5. Informar a variavel `DATABASE_URL` com a conexao do PostgreSQL externo.
+6. Aguardar criar o Web Service `troca-ae-sis-pro`.
 
 Variaveis que o Blueprint configura:
 
 ```text
-DATABASE_URL=conectada automaticamente ao PostgreSQL
+DATABASE_URL=preencher com a conexao do PostgreSQL externo
 HOST=0.0.0.0
-APP_STORAGE_ROOT=/var/data
 APP_ENV=production
 ```
 
@@ -90,8 +89,10 @@ Variaveis principais:
 DATABASE_URL=postgresql://usuario:senha@host:5432/troca_ae
 HOST=0.0.0.0
 PORT=5050
-APP_STORAGE_ROOT=/var/data
+APP_STORAGE_ROOT=
 ```
+
+Observacao importante: no plano gratuito da Render, os arquivos enviados para a pasta local do servidor nao sao armazenamento definitivo. O banco PostgreSQL externo guarda os dados principais. Para fotos de OS, backups e anexos em producao, a etapa correta e ligar um armazenamento externo, como Supabase Storage, Cloudinary, S3 ou outro servico equivalente.
 
 ## Etapa 4 - App desktop ou mobile
 
