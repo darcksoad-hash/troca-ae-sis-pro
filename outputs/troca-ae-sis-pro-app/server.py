@@ -1647,7 +1647,7 @@ def main():
     seed()
     port = int(os.environ.get("PORT", "5050"))
     host = os.environ.get("HOST", "127.0.0.1")
-    if DB_ENGINE == "postgres":
+    if DB_ENGINE == "postgres" and os.environ.get("RUN_STARTUP_TASKS", "") == "1":
         threading.Thread(target=run_startup_tasks, daemon=True).start()
     print(f"Troca Ae SIS PRO rodando em http://{host}:{port}", flush=True)
     ThreadingHTTPServer((host, port), App).serve_forever()
