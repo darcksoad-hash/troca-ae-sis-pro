@@ -501,7 +501,7 @@ def seed():
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS recurrence_until TEXT")
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS installment INTEGER NOT NULL DEFAULT 1")
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS installments INTEGER NOT NULL DEFAULT 1")
-        if conn.execute("SELECT COUNT(*) FROM roles").fetchone()[0] == 0:
+        if conn.execute("SELECT COUNT(*) AS total FROM roles").fetchone()["total"] == 0:
             permissions = {
                 "clientes": ["ver", "criar", "editar", "excluir"],
                 "os": ["ver", "criar", "editar", "aprovar", "finalizar", "imprimir"],
