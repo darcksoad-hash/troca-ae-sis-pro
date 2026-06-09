@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 import base64
+import gzip
 import hashlib
 import hmac
 import json
@@ -718,11 +719,19 @@ def ensure_catalog():
 class App(BaseHTTPRequestHandler):
     def send_json(self, data, status=200):
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        use_gzip = len(payload) > 1024 and "gzip" in self.headers.get("Accept-Encoding", "").lower()
+        if use_gzip:
+            payload = gzip.compress(payload, compresslevel=6)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        if use_gzip:
+            self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.wfile.write(payload)
+        except BrokenPipeError:
+            return
 
     def read_json(self):
         size = int(self.headers.get("Content-Length", "0"))
