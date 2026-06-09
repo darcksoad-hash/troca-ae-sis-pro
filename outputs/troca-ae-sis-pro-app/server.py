@@ -896,13 +896,25 @@ class App(BaseHTTPRequestHandler):
         if path == "/api/me":
             self.send_json({"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])})
         elif path == "/api/dashboard":
+            order_statuses = {
+                item["status"]: item["total"]
+                for item in rows("SELECT status, COUNT(*) AS total FROM service_orders GROUP BY status ORDER BY total DESC")
+            }
             self.send_json({
                 "open_orders": row("SELECT COUNT(*) AS total FROM service_orders WHERE status NOT IN ('Finalizada','Cancelada')")["total"],
                 "clients": row("SELECT COUNT(*) AS total FROM clients")["total"],
                 "parts_low_stock": row("SELECT COUNT(*) AS total FROM parts WHERE stock <= min_stock")["total"],
+                "parts_no_stock": row("SELECT COUNT(*) AS total FROM parts WHERE stock = 0")["total"],
+                "parts_total": row("SELECT COUNT(*) AS total FROM parts")["total"],
+                "income": row("SELECT COALESCE(SUM(amount - card_fee),0) AS total FROM finance_entries WHERE type='Entrada'")["total"],
+                "expense": row("SELECT COALESCE(SUM(amount),0) AS total FROM finance_entries WHERE type='Saida'")["total"],
                 "receivable": row("SELECT COALESCE(SUM((SELECT COALESCE(SUM(unit_price*quantity),0) FROM order_parts WHERE order_id=service_orders.id) + (SELECT COALESCE(SUM(labor),0) FROM order_services WHERE order_id=service_orders.id) - discount - paid),0) AS total FROM service_orders")["total"],
+                "order_statuses": order_statuses,
+                "overdue_orders": rows("SELECT number, client_name FROM service_orders WHERE due < ? AND status NOT IN ('Finalizada','Cancelada') ORDER BY due LIMIT 3", (today(),)),
+                "low_parts": rows("SELECT name, stock, min_stock FROM parts WHERE stock <= min_stock ORDER BY stock, name LIMIT 3"),
             })
-        elif path == "/api/bootstrap":
+        elif path in ("/api/bootstrap", "/api/bootstrap-lite"):
+            lite = path == "/api/bootstrap-lite"
             clients_allowed = self.has_permission(user, "clientes", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             catalog_allowed = self.has_permission(user, "fabricantes", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar") or self.has_permission(user, "estoque", "ver")
             stock_allowed = self.has_permission(user, "estoque", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
@@ -910,23 +922,24 @@ class App(BaseHTTPRequestHandler):
             self.send_json({
                 "company": row("SELECT * FROM company_settings WHERE id=1"),
                 "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
+                "full": not lite,
                 "me": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])},
                 "clients": rows("SELECT * FROM clients ORDER BY name") if clients_allowed else [],
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
                 "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],
-                "parts": rows("SELECT * FROM parts ORDER BY name") if stock_allowed else [],
+                "parts": [] if lite else (rows("SELECT * FROM parts ORDER BY name") if stock_allowed else []),
                 "services": rows("SELECT * FROM services ORDER BY name") if services_allowed else [],
                 "suppliers": rows("SELECT * FROM suppliers ORDER BY name") if stock_allowed else [],
-                "stock_movements": rows("SELECT * FROM stock_movements ORDER BY created_at DESC") if stock_allowed else [],
-                "purchases": rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC") if stock_allowed else [],
-                "purchase_items": rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else [],
+                "stock_movements": [] if lite else (rows("SELECT * FROM stock_movements ORDER BY created_at DESC") if stock_allowed else []),
+                "purchases": [] if lite else (rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC") if stock_allowed else []),
+                "purchase_items": [] if lite else (rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else []),
                 "roles": rows("SELECT id,name,level,permissions,created_at FROM roles ORDER BY level DESC") if self.has_permission(user, "configuracoes", "ver") else [],
                 "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if self.has_permission(user, "configuracoes", "ver") else [],
-                "orders": order_payload() if self.has_permission(user, "os", "ver") else [],
-                "finance": rows("SELECT * FROM finance_entries ORDER BY date DESC, due_date DESC") if self.has_permission(user, "financeiro", "ver") else [],
-                "cash_sessions": rows("SELECT * FROM cash_sessions ORDER BY date DESC") if self.has_permission(user, "financeiro", "ver") else [],
-                "pos_sales": rows("SELECT * FROM pos_sales ORDER BY date DESC, number DESC") if self.has_permission(user, "pdv", "ver") else [],
-                "pos_sale_items": rows("SELECT * FROM pos_sale_items ORDER BY id") if self.has_permission(user, "pdv", "ver") else [],
+                "orders": [] if lite else (order_payload() if self.has_permission(user, "os", "ver") else []),
+                "finance": [] if lite else (rows("SELECT * FROM finance_entries ORDER BY date DESC, due_date DESC") if self.has_permission(user, "financeiro", "ver") else []),
+                "cash_sessions": [] if lite else (rows("SELECT * FROM cash_sessions ORDER BY date DESC") if self.has_permission(user, "financeiro", "ver") else []),
+                "pos_sales": [] if lite else (rows("SELECT * FROM pos_sales ORDER BY date DESC, number DESC") if self.has_permission(user, "pdv", "ver") else []),
+                "pos_sale_items": [] if lite else (rows("SELECT * FROM pos_sale_items ORDER BY id") if self.has_permission(user, "pdv", "ver") else []),
             })
         elif path == "/api/orders":
             if not self.require_permission(user, "os", "ver"):

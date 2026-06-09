@@ -237,12 +237,12 @@
     async function boot() {
       document.getElementById('login').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
-      state = await api('/api/bootstrap');
+      state = await api('/api/bootstrap-lite');
       applyBranding();
       updateSidebarPin();
       applyPermissions();
       const requestedPage = new URLSearchParams(location.search).get('page') || 'dashboard';
-      render(document.querySelector(`aside button[data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
+      await render(document.querySelector(`aside button[data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
     }
 
     function applyBranding() {
@@ -361,7 +361,18 @@
       return '#f9732f';
     }
 
-    function render(page) {
+    async function ensureFullData() {
+      if (state.full) return;
+      document.getElementById('content').innerHTML = '<div class="panel"><div class="panel-body muted">Carregando dados completos...</div></div>';
+      state = await api('/api/bootstrap');
+      applyBranding();
+      applyPermissions();
+    }
+
+    async function render(page) {
+      if (['orders','parts','pos','finance','reports'].includes(page)) {
+        await ensureFullData();
+      }
       const names = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
       document.getElementById('title').textContent = names[page] || 'Painel';
       if (page === 'dashboard') renderDashboard();
@@ -379,14 +390,15 @@
 
     async function renderDashboard() {
       const dash = await api('/api/dashboard');
-      const openOrders = state.orders.filter(order => !['Finalizada','Cancelada'].includes(order.status));
-      const statuses = state.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
+      const openOrders = dash.overdue_orders || state.orders.filter(order => !['Finalizada','Cancelada'].includes(order.status));
+      const statuses = dash.order_statuses || state.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
       const maxStatus = Math.max(1, ...Object.values(statuses));
       const topStatuses = Object.entries(statuses).sort((a,b) => b[1] - a[1]);
-      const income = state.finance.filter(item => item.type === 'Entrada').reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const expense = state.finance.filter(item => item.type === 'Saida').reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const lowParts = state.parts.filter(part => Number(part.stock || 0) <= Number(part.min_stock || 0));
-      const stockSummary = [['Estoque baixo', lowParts.length], ['Sem estoque', state.parts.filter(part => Number(part.stock || 0) === 0).length], ['Total de pecas', state.parts.length]];
+      const income = Number(dash.income || 0) || state.finance.filter(item => item.type === 'Entrada').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const expense = Number(dash.expense || 0) || state.finance.filter(item => item.type === 'Saida').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const lowParts = dash.low_parts || state.parts.filter(part => Number(part.stock || 0) <= Number(part.min_stock || 0));
+      const partsTotal = Number(dash.parts_total ?? state.parts.length);
+      const stockSummary = [['Estoque baixo', Number(dash.parts_low_stock ?? lowParts.length)], ['Sem estoque', Number(dash.parts_no_stock ?? state.parts.filter(part => Number(part.stock || 0) === 0).length)], ['Total de pecas', partsTotal]];
       document.getElementById('content').innerHTML = `
         <div class="grid kpis">
           <div class="kpi"><span>OS abertas</span><strong>${dash.open_orders}</strong><small>Servicos em andamento</small></div>
@@ -414,13 +426,13 @@
           <div class="panel">
             <div class="panel-head"><h2>Estoque em resumo</h2><button class="btn" onclick="render('parts')">Ver pecas</button></div>
             <div class="panel-body chart-list">
-              ${stockSummary.map(([name, count]) => `<div class="mini-chart-row"><strong>${name}</strong><div class="mini-track"><div class="mini-fill" style="width:${Math.min(100, count / Math.max(1, state.parts.length) * 100)}%"></div></div><span>${count}</span></div>`).join('')}
+              ${stockSummary.map(([name, count]) => `<div class="mini-chart-row"><strong>${name}</strong><div class="mini-track"><div class="mini-fill" style="width:${Math.min(100, count / Math.max(1, partsTotal) * 100)}%"></div></div><span>${count}</span></div>`).join('')}
             </div>
           </div>
           <div class="panel">
             <div class="panel-head"><h2>Alertas operacionais</h2></div>
             <div class="panel-body summary-list">
-              ${openOrders.filter(order => order.due && new Date(order.due) < new Date(new Date().toISOString().slice(0,10))).slice(0,3).map(order => `<div class="summary-item"><strong>OS ${order.number} atrasada</strong><span>${order.client_name}</span></div>`).join('') || '<div class="summary-item"><strong>Sem OS atrasada</strong><span>Hoje</span></div>'}
+              ${openOrders.slice(0,3).map(order => `<div class="summary-item"><strong>OS ${order.number} atrasada</strong><span>${order.client_name}</span></div>`).join('') || '<div class="summary-item"><strong>Sem OS atrasada</strong><span>Hoje</span></div>'}
               ${lowParts.slice(0,3).map(part => `<div class="summary-item"><strong>${part.name}</strong><span>${part.stock}/${part.min_stock}</span></div>`).join('')}
             </div>
           </div>
