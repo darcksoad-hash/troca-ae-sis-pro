@@ -33,6 +33,8 @@ SESSIONS = {}
 SESSION_SECONDS = 8 * 60 * 60
 LOCK_ATTEMPTS = 5
 LOCK_SECONDS = 15 * 60
+PG_CONN = None
+PG_LOCK = threading.RLock()
 
 try:
     import psycopg
@@ -149,17 +151,31 @@ class PostgresConnection:
     def __init__(self):
         if psycopg is None:
             raise RuntimeError("Instale psycopg para usar PostgreSQL: pip install psycopg[binary]")
-        self.conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        self.conn = None
 
     def __enter__(self):
+        global PG_CONN
+        PG_LOCK.acquire()
+        if PG_CONN is None or PG_CONN.closed:
+            PG_CONN = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        self.conn = PG_CONN
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        if exc_type:
-            self.conn.rollback()
-        else:
-            self.conn.commit()
-        self.conn.close()
+        global PG_CONN
+        try:
+            if exc_type:
+                self.conn.rollback()
+            else:
+                self.conn.commit()
+        except Exception:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            PG_CONN = None
+        finally:
+            PG_LOCK.release()
 
     def execute(self, sql, params=()):
         if sql.strip().upper().startswith("PRAGMA"):
