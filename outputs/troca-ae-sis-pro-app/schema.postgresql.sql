@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS users (
   locked_until TEXT,
   last_login TEXT,
   password_changed_at TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 1,
+  email_verification_token TEXT,
+  email_verification_expires TEXT,
+  password_reset_token TEXT,
+  password_reset_expires TEXT,
   created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::TEXT)
 );
 

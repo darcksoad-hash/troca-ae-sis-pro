@@ -73,6 +73,12 @@ Variaveis que o Blueprint configura:
 DATABASE_URL=preencher com a conexao do PostgreSQL externo
 HOST=0.0.0.0
 APP_ENV=production
+APP_URL=https://seu-servico.onrender.com
+SMTP_HOST=smtp.seu-provedor.com
+SMTP_PORT=587
+SMTP_USER=seu-email@dominio.com
+SMTP_PASSWORD=senha-ou-app-password
+SMTP_FROM=seu-email@dominio.com
 ```
 
 Depois do primeiro deploy, abrir:
@@ -90,7 +96,15 @@ DATABASE_URL=postgresql://usuario:senha@host:5432/troca_ae
 HOST=0.0.0.0
 PORT=5050
 APP_STORAGE_ROOT=
+APP_URL=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
 ```
+
+As variaveis `SMTP_*` ativam confirmacao de usuario por e-mail e redefinicao de senha. Sem SMTP configurado, o sistema continua funcionando, mas os links sao registrados apenas no log do servidor.
 
 Observacao importante: no plano gratuito da Render, os arquivos enviados para a pasta local do servidor nao sao armazenamento definitivo. O banco PostgreSQL externo guarda os dados principais. Para fotos de OS, backups e anexos em producao, a etapa correta e ligar um armazenamento externo, como Supabase Storage, Cloudinary, S3 ou outro servico equivalente.
 

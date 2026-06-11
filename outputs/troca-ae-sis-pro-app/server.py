@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import secrets
+import smtplib
 import sqlite3
 import subprocess
 import threading
@@ -16,6 +17,7 @@ import traceback
 import uuid
 import zipfile
 from datetime import datetime
+from email.message import EmailMessage
 
 ROOT = Path(__file__).resolve().parent
 STORAGE_ROOT = Path(os.environ.get("APP_STORAGE_ROOT", ROOT)).resolve()
@@ -28,6 +30,7 @@ PENDING_RESTORE = DATA / "restore-pending.json"
 SCHEMA_PATH = ROOT / "schema.sql"
 POSTGRES_SCHEMA_PATH = ROOT / "schema.postgresql.sql"
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+APP_URL = os.environ.get("APP_URL", "").strip().rstrip("/")
 DB_ENGINE = "postgres" if DATABASE_URL.startswith(("postgres://", "postgresql://")) else "sqlite"
 SESSIONS = {}
 SESSION_SECONDS = 8 * 60 * 60
@@ -98,6 +101,50 @@ def password_strength_error(password):
     if not any(ch.isalpha() for ch in value) or not any(ch.isdigit() for ch in value):
         return "A senha precisa ter letras e numeros."
     return ""
+
+
+def token_hash(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def app_url_from_request(handler):
+    if APP_URL:
+        return APP_URL
+    proto = handler.headers.get("X-Forwarded-Proto", "http")
+    host = handler.headers.get("Host", "127.0.0.1:5050")
+    return f"{proto}://{host}"
+
+
+def smtp_configured():
+    return bool(os.environ.get("SMTP_HOST") and os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"))
+
+
+def send_email(to_email, subject, body):
+    try:
+        if not smtp_configured():
+            print(f"[email nao configurado] Para: {to_email} | {subject}\n{body}", flush=True)
+            return False
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER")
+        msg["To"] = to_email
+        msg.set_content(body)
+        host = os.environ["SMTP_HOST"]
+        port = int(os.environ.get("SMTP_PORT", "587"))
+        use_ssl = os.environ.get("SMTP_SSL", "").lower() in ("1", "true", "yes")
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port, timeout=20) as server:
+                server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=20) as server:
+                server.starttls()
+                server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASSWORD"])
+                server.send_message(msg)
+        return True
+    except Exception as error:
+        print(f"[falha ao enviar email] {to_email}: {error}", flush=True)
+        return False
 
 
 def is_integrity_error(error):
@@ -453,6 +500,16 @@ def seed():
                 conn.execute("ALTER TABLE users ADD COLUMN last_login TEXT")
             if "password_changed_at" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN password_changed_at TEXT")
+            for column, definition in {
+                "email_verified": "INTEGER NOT NULL DEFAULT 1",
+                "email_verification_token": "TEXT",
+                "email_verification_expires": "TEXT",
+                "password_reset_token": "TEXT",
+                "password_reset_expires": "TEXT",
+            }.items():
+                if column not in user_columns:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {column} {definition}")
+            conn.execute("UPDATE users SET email_verified=1 WHERE email_verified IS NULL")
             part_columns = table_columns(conn, "parts")
             if "warranty_days" not in part_columns:
                 conn.execute("ALTER TABLE parts ADD COLUMN warranty_days INTEGER NOT NULL DEFAULT 90")
@@ -498,6 +555,12 @@ def seed():
             conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TEXT")
             conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TEXT")
             conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TEXT")
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER NOT NULL DEFAULT 1")
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token TEXT")
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TEXT")
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token TEXT")
+            conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires TEXT")
+            conn.execute("UPDATE users SET email_verified=1 WHERE email_verified IS NULL")
             conn.execute("ALTER TABLE parts ADD COLUMN IF NOT EXISTS warranty_days INTEGER NOT NULL DEFAULT 90")
             conn.execute("ALTER TABLE parts ADD COLUMN IF NOT EXISTS usage_type TEXT NOT NULL DEFAULT 'Ambos'")
             conn.execute("ALTER TABLE service_orders ADD COLUMN IF NOT EXISTS approval_signature TEXT")
@@ -795,6 +858,81 @@ class App(BaseHTTPRequestHandler):
         self.send_json({"error": f"Sem permissao para {action} em {module}."}, 403)
         return False
 
+    def send_verification_email(self, user):
+        raw_token = secrets.token_urlsafe(32)
+        expires = seconds_from_now(24 * 60 * 60)
+        execute(
+            "UPDATE users SET email_verification_token=?, email_verification_expires=? WHERE id=?",
+            (token_hash(raw_token), expires, user["id"]),
+        )
+        link = f"{app_url_from_request(self)}/?verify_email={user['email']}&verify_token={raw_token}"
+        body = (
+            f"Ola {user['name']},\n\n"
+            "Confirme seu acesso ao Troca Ae SIS PRO pelo link abaixo:\n"
+            f"{link}\n\n"
+            "Este link vale por 24 horas. Se voce nao solicitou este acesso, ignore este e-mail."
+        )
+        return send_email(user["email"], "Confirme seu acesso - Troca Ae SIS PRO", body)
+
+    def send_password_reset_email(self, user):
+        raw_token = secrets.token_urlsafe(32)
+        expires = seconds_from_now(60 * 60)
+        execute(
+            "UPDATE users SET password_reset_token=?, password_reset_expires=? WHERE id=?",
+            (token_hash(raw_token), expires, user["id"]),
+        )
+        link = f"{app_url_from_request(self)}/?reset_email={user['email']}&reset_token={raw_token}"
+        body = (
+            f"Ola {user['name']},\n\n"
+            "Recebemos uma solicitacao para redefinir sua senha no Troca Ae SIS PRO.\n"
+            f"Acesse o link abaixo para criar uma nova senha:\n{link}\n\n"
+            "Este link vale por 1 hora. Se voce nao solicitou, ignore este e-mail."
+        )
+        return send_email(user["email"], "Redefinicao de senha - Troca Ae SIS PRO", body)
+
+    def request_password_reset(self, data):
+        email = (data.get("email") or "").strip().lower()
+        user = row("SELECT id,name,email,status FROM users WHERE LOWER(email)=?", (email,))
+        if user and user["status"] == "Ativo":
+            self.send_password_reset_email(user)
+        self.send_json({"ok": True, "message": "Se o e-mail estiver cadastrado, enviaremos um link de redefinicao."})
+
+    def reset_password_by_token(self, data):
+        email = (data.get("email") or "").strip().lower()
+        raw_token = data.get("token") or ""
+        new_password = data.get("password") or ""
+        error = password_strength_error(new_password)
+        if error:
+            self.send_json({"error": error}, 400)
+            return
+        user = row("SELECT id,email,password_reset_token,password_reset_expires FROM users WHERE LOWER(email)=?", (email,))
+        if not user or not user["password_reset_token"] or user["password_reset_token"] != token_hash(raw_token) or (user["password_reset_expires"] or "") < now():
+            self.send_json({"error": "Link de redefinicao invalido ou expirado."}, 400)
+            return
+        execute(
+            """UPDATE users SET password_hash=?, password_changed_at=?, failed_attempts=0, locked_until=NULL,
+            password_reset_token=NULL, password_reset_expires=NULL, email_verified=1 WHERE id=?""",
+            (password_hash(new_password), now(), user["id"]),
+        )
+        self.send_json({"ok": True, "message": "Senha redefinida com sucesso. Voce ja pode entrar."})
+
+    def verify_email_by_token(self, data):
+        email = (data.get("email") or "").strip().lower()
+        raw_token = data.get("token") or ""
+        user = row("SELECT id,email,email_verification_token,email_verification_expires FROM users WHERE LOWER(email)=?", (email,))
+        if not user or not user["email_verification_token"] or user["email_verification_token"] != token_hash(raw_token) or (user["email_verification_expires"] or "") < now():
+            self.send_json({"error": "Link de confirmacao invalido ou expirado."}, 400)
+            return
+        execute("UPDATE users SET email_verified=1, email_verification_token=NULL, email_verification_expires=NULL WHERE id=?", (user["id"],))
+        self.send_json({"ok": True, "message": "E-mail confirmado com sucesso. Voce ja pode entrar."})
+
+    def resend_verification(self, data):
+        email = (data.get("email") or "").strip().lower()
+        user = row("SELECT id,name,email,status,email_verified FROM users WHERE LOWER(email)=?", (email,))
+        if user and user["status"] == "Ativo" and not int(user.get("email_verified") or 0):
+            self.send_verification_email(user)
+        self.send_json({"ok": True, "message": "Se houver uma conta pendente, enviaremos um novo link de confirmacao."})
+
     def user_payload(self, user):
         return {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])}
 
@@ -861,7 +999,7 @@ class App(BaseHTTPRequestHandler):
             allowed = self.has_permission(user, "configuracoes", "ver")
             return payload | {
                 "roles": rows("SELECT id,name,level,permissions,created_at FROM roles ORDER BY level DESC") if allowed else [],
-                "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if allowed else [],
+                "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if allowed else [],
             }
         if page == "reports":
             return self.page_payload(user, "orders") | self.page_payload(user, "parts") | self.page_payload(user, "finance") | self.page_payload(user, "services") | self.page_payload(user, "catalog")
@@ -905,6 +1043,18 @@ class App(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/auth/request-password-reset":
+            self.request_password_reset(self.read_json())
+            return
+        if path == "/api/auth/reset-password":
+            self.reset_password_by_token(self.read_json())
+            return
+        if path == "/api/auth/verify-email":
+            self.verify_email_by_token(self.read_json())
+            return
+        if path == "/api/auth/resend-verification":
+            self.resend_verification(self.read_json())
+            return
         if path == "/api/login":
             data = self.read_json()
             user = row("SELECT users.*, roles.name AS role_name, roles.level, roles.permissions FROM users JOIN roles ON roles.id = users.role_id WHERE email=?", (data.get("email", ""),))
@@ -922,6 +1072,9 @@ class App(BaseHTTPRequestHandler):
                 return
             if user["status"] != "Ativo":
                 self.send_json({"error": "Usuario inativo ou bloqueado."}, 403)
+                return
+            if not int(user.get("email_verified") if user.get("email_verified") is not None else 1):
+                self.send_json({"error": "Confirme seu e-mail antes de entrar. Use a opcao de reenviar confirmacao na tela de login."}, 403)
                 return
             token = secrets.token_urlsafe(32)
             expires_at = time.time() + SESSION_SECONDS
@@ -1060,7 +1213,7 @@ class App(BaseHTTPRequestHandler):
                 "purchases": [] if lite else (rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC") if stock_allowed else []),
                 "purchase_items": [] if lite else (rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else []),
                 "roles": rows("SELECT id,name,level,permissions,created_at FROM roles ORDER BY level DESC") if self.has_permission(user, "configuracoes", "ver") else [],
-                "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if self.has_permission(user, "configuracoes", "ver") else [],
+                "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if self.has_permission(user, "configuracoes", "ver") else [],
                 "orders": [] if lite else (order_payload() if self.has_permission(user, "os", "ver") else []),
                 "finance": [] if lite else (rows("SELECT * FROM finance_entries ORDER BY date DESC, due_date DESC") if self.has_permission(user, "financeiro", "ver") else []),
                 "cash_sessions": [] if lite else (rows("SELECT * FROM cash_sessions ORDER BY date DESC") if self.has_permission(user, "financeiro", "ver") else []),
@@ -1579,8 +1732,9 @@ class App(BaseHTTPRequestHandler):
 
     def save_user(self, path, data, user):
         item_id = self.id_from_path(path) or uid("usr")
-        exists = row("SELECT id,password_hash FROM users WHERE id=?", (item_id,))
+        exists = row("SELECT id,email,password_hash,email_verified FROM users WHERE id=?", (item_id,))
         new_password = data.get("password", "")
+        email = (data.get("email", "") or "").strip().lower()
         if new_password:
             error = password_strength_error(new_password)
             if error:
@@ -1588,11 +1742,19 @@ class App(BaseHTTPRequestHandler):
                 return
         status = data.get("status", "Ativo")
         if exists:
-            execute("UPDATE users SET name=?,email=?,role_id=?,status=? WHERE id=?", (data.get("name", ""), data.get("email", ""), data.get("role_id", ""), status, item_id))
+            email_changed = email and email != (exists.get("email") or "").lower()
+            execute(
+                "UPDATE users SET name=?,email=?,role_id=?,status=?,email_verified=CASE WHEN ? THEN 0 ELSE email_verified END WHERE id=?",
+                (data.get("name", ""), email, data.get("role_id", ""), status, 1 if email_changed else 0, item_id),
+            )
             if status == "Ativo":
                 execute("UPDATE users SET failed_attempts=0, locked_until=NULL WHERE id=?", (item_id,))
             if new_password:
                 execute("UPDATE users SET password_hash=?, password_changed_at=? WHERE id=?", (password_hash(new_password), now(), item_id))
+            if email_changed:
+                target = row("SELECT id,name,email FROM users WHERE id=?", (item_id,))
+                if target:
+                    self.send_verification_email(target)
             action = "Usuario editado"
         else:
             password = new_password or "Senha123"
@@ -1601,12 +1763,15 @@ class App(BaseHTTPRequestHandler):
                 self.send_json({"error": error}, 400)
                 return
             execute(
-                "INSERT INTO users(id,name,email,password_hash,role_id,status,password_changed_at) VALUES(?,?,?,?,?,?,?)",
-                (item_id, data.get("name", ""), data.get("email", ""), password_hash(password), data.get("role_id", "role-adm"), status, now()),
+                "INSERT INTO users(id,name,email,password_hash,role_id,status,password_changed_at,email_verified) VALUES(?,?,?,?,?,?,?,?)",
+                (item_id, data.get("name", ""), email, password_hash(password), data.get("role_id", "role-adm"), status, now(), 0),
             )
+            target = row("SELECT id,name,email FROM users WHERE id=?", (item_id,))
+            if target:
+                self.send_verification_email(target)
             action = "Usuario criado"
         self.audit(user["id"], action, data.get("email", ""))
-        self.send_json(row("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id WHERE users.id=?", (item_id,)), 201 if not exists else 200)
+        self.send_json(row("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id WHERE users.id=?", (item_id,)), 201 if not exists else 200)
 
     def change_my_password(self, data, user):
         current = data.get("current_password", "")
@@ -1638,7 +1803,7 @@ class App(BaseHTTPRequestHandler):
             return
         execute("UPDATE users SET failed_attempts=0, locked_until=NULL, status='Ativo' WHERE id=?", (item_id,))
         self.audit(user["id"], "Usuario desbloqueado", target["email"])
-        self.send_json(row("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id WHERE users.id=?", (item_id,)))
+        self.send_json(row("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id WHERE users.id=?", (item_id,)))
 
     def save_role(self, path, data, user):
         item_id = self.id_from_path(path) or uid("role")
