@@ -768,8 +768,13 @@ class App(BaseHTTPRequestHandler):
             SESSIONS.pop(token, None)
             return None
         session["expires_at"] = time.time() + SESSION_SECONDS
+        if session.get("user"):
+            return session["user"]
         user_id = session.get("user_id")
-        return row("SELECT users.*, roles.name AS role_name, roles.level, roles.permissions FROM users JOIN roles ON roles.id = users.role_id WHERE users.id=?", (user_id,)) if user_id else None
+        user = row("SELECT users.*, roles.name AS role_name, roles.level, roles.permissions FROM users JOIN roles ON roles.id = users.role_id WHERE users.id=?", (user_id,)) if user_id else None
+        if user:
+            session["user"] = user
+        return user
 
     def require_user(self):
         user = self.token_user()
@@ -789,6 +794,78 @@ class App(BaseHTTPRequestHandler):
             return True
         self.send_json({"error": f"Sem permissao para {action} em {module}."}, 403)
         return False
+
+    def user_payload(self, user):
+        return {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])}
+
+    def base_payload(self, user, full=True):
+        return {
+            "company": row("SELECT * FROM company_settings WHERE id=1"),
+            "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
+            "full": full,
+            "me": self.user_payload(user),
+        }
+
+    def page_payload(self, user, page):
+        payload = self.base_payload(user, True)
+        part_select = "SELECT id,sku,name,category,manufacturer_id,compatible_models,price,stock,min_stock,warranty_days,usage_type FROM parts ORDER BY name"
+        if page == "clients":
+            if not self.has_permission(user, "clientes", "ver"):
+                return payload | {"clients": []}
+            return payload | {"clients": rows("SELECT * FROM clients ORDER BY name")}
+        if page == "catalog":
+            allowed = self.has_permission(user, "fabricantes", "ver")
+            return payload | {
+                "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if allowed else [],
+                "models": rows("SELECT * FROM product_models ORDER BY name") if allowed else [],
+            }
+        if page == "parts":
+            stock_allowed = self.has_permission(user, "estoque", "ver")
+            catalog_allowed = stock_allowed or self.has_permission(user, "fabricantes", "ver")
+            return payload | {
+                "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
+                "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],
+                "parts": rows("SELECT * FROM parts ORDER BY name") if stock_allowed else [],
+                "suppliers": rows("SELECT * FROM suppliers ORDER BY name") if stock_allowed else [],
+                "stock_movements": rows("SELECT * FROM stock_movements ORDER BY created_at DESC") if stock_allowed else [],
+                "purchases": rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC") if stock_allowed else [],
+                "purchase_items": rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else [],
+            }
+        if page == "services":
+            return payload | {"services": rows("SELECT * FROM services ORDER BY name") if self.has_permission(user, "servicos", "ver") else []}
+        if page == "orders":
+            order_allowed = self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
+            return payload | {
+                "clients": rows("SELECT * FROM clients ORDER BY name") if order_allowed else [],
+                "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if order_allowed else [],
+                "models": rows("SELECT * FROM product_models ORDER BY name") if order_allowed else [],
+                "parts": [],
+                "services": rows("SELECT * FROM services ORDER BY name") if order_allowed else [],
+                "orders": order_payload() if self.has_permission(user, "os", "ver") else [],
+            }
+        if page == "finance":
+            allowed = self.has_permission(user, "financeiro", "ver")
+            return payload | {
+                "finance": rows("SELECT * FROM finance_entries ORDER BY date DESC, due_date DESC") if allowed else [],
+                "cash_sessions": rows("SELECT * FROM cash_sessions ORDER BY date DESC") if allowed else [],
+            }
+        if page == "pos":
+            allowed = self.has_permission(user, "pdv", "ver")
+            return payload | {
+                "clients": rows("SELECT * FROM clients ORDER BY name") if allowed else [],
+                "parts": rows(part_select) if allowed else [],
+                "pos_sales": rows("SELECT * FROM pos_sales ORDER BY date DESC, number DESC") if allowed else [],
+                "pos_sale_items": rows("SELECT * FROM pos_sale_items ORDER BY id") if allowed else [],
+            }
+        if page == "settings":
+            allowed = self.has_permission(user, "configuracoes", "ver")
+            return payload | {
+                "roles": rows("SELECT id,name,level,permissions,created_at FROM roles ORDER BY level DESC") if allowed else [],
+                "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if allowed else [],
+            }
+        if page == "reports":
+            return self.page_payload(user, "orders") | self.page_payload(user, "parts") | self.page_payload(user, "finance") | self.page_payload(user, "services") | self.page_payload(user, "catalog")
+        return payload
 
     def serve_file(self, base, rel):
         path = (base / rel.lstrip("/")).resolve()
@@ -830,7 +907,7 @@ class App(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/login":
             data = self.read_json()
-            user = row("SELECT users.*, roles.name AS role_name FROM users JOIN roles ON roles.id = users.role_id WHERE email=?", (data.get("email", ""),))
+            user = row("SELECT users.*, roles.name AS role_name, roles.level, roles.permissions FROM users JOIN roles ON roles.id = users.role_id WHERE email=?", (data.get("email", ""),))
             if user and user.get("locked_until") and user["locked_until"] > now():
                 self.send_json({"error": f"Usuario bloqueado ate {user['locked_until']}."}, 403)
                 return
@@ -848,9 +925,15 @@ class App(BaseHTTPRequestHandler):
                 return
             token = secrets.token_urlsafe(32)
             expires_at = time.time() + SESSION_SECONDS
-            SESSIONS[token] = {"user_id": user["id"], "expires_at": expires_at}
-            execute("UPDATE users SET failed_attempts=0, locked_until=NULL, last_login=? WHERE id=?", (now(), user["id"]))
-            self.audit(user["id"], "Login realizado", user["email"])
+            login_at = now()
+            user["last_login"] = login_at
+            user["failed_attempts"] = 0
+            user["locked_until"] = None
+            SESSIONS[token] = {"user_id": user["id"], "user": user, "expires_at": expires_at}
+            with db() as conn:
+                conn.execute("UPDATE users SET failed_attempts=0, locked_until=NULL, last_login=? WHERE id=?", (login_at, user["id"]))
+                conn.execute("INSERT INTO audit_logs(id,user_id,action,detail) VALUES(?,?,?,?)", (uid("aud"), user["id"], "Login realizado", user["email"]))
+                conn.commit()
             self.send_json({"token": token, "expires_at": int(expires_at), "user": {"id": user["id"], "name": user["name"], "role": user["role_name"]}})
             return
         if path == "/api/logout":
@@ -894,7 +977,7 @@ class App(BaseHTTPRequestHandler):
         if not user:
             return
         if path == "/api/me":
-            self.send_json({"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])})
+            self.send_json(self.user_payload(user))
         elif path == "/api/dashboard":
             with db() as conn:
                 summary = row_dict(conn.execute(
@@ -922,6 +1005,24 @@ class App(BaseHTTPRequestHandler):
                 ]
             summary.update({"order_statuses": order_statuses, "overdue_orders": overdue_orders, "low_parts": low_parts})
             self.send_json(summary)
+        elif path.startswith("/api/page-data/"):
+            page = path.split("/")[-1]
+            self.send_json(self.page_payload(user, page))
+        elif path == "/api/order-parts":
+            if not (self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar") or self.has_permission(user, "estoque", "ver")):
+                self.send_json({"error": "Sem permissao para ver pecas."}, 403)
+                return
+            query = parse_qs(urlparse(self.path).query)
+            model_id = query.get("model_id", [""])[0]
+            manufacturer_id = query.get("manufacturer_id", [""])[0]
+            select_sql = "SELECT id,name,manufacturer_id,compatible_models,price,stock,warranty_days,usage_type FROM parts WHERE COALESCE(usage_type,'Ambos') <> 'Venda'"
+            if model_id:
+                self.send_json(rows(f"{select_sql} AND compatible_models LIKE ? ORDER BY name", (f"%{model_id}%",)))
+                return
+            if manufacturer_id:
+                self.send_json(rows(f"{select_sql} AND manufacturer_id=? ORDER BY name", (manufacturer_id,)))
+                return
+            self.send_json([])
         elif path in ("/api/bootstrap", "/api/bootstrap-lite"):
             lite = path == "/api/bootstrap-lite"
             clients_allowed = self.has_permission(user, "clientes", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
@@ -929,11 +1030,7 @@ class App(BaseHTTPRequestHandler):
             stock_allowed = self.has_permission(user, "estoque", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             services_allowed = self.has_permission(user, "servicos", "ver") or self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             if lite:
-                self.send_json({
-                    "company": row("SELECT * FROM company_settings WHERE id=1"),
-                    "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
-                    "full": False,
-                    "me": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])},
+                self.send_json(self.base_payload(user, False) | {
                     "clients": [],
                     "manufacturers": [],
                     "models": [],
@@ -952,11 +1049,7 @@ class App(BaseHTTPRequestHandler):
                     "pos_sale_items": [],
                 })
                 return
-            self.send_json({
-                "company": row("SELECT * FROM company_settings WHERE id=1"),
-                "database": {"engine": DB_ENGINE, "production": DB_ENGINE == "postgres"},
-                "full": True,
-                "me": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role_name"], "level": user["level"], "permissions": json.loads(user["permissions"])},
+            self.send_json(self.base_payload(user, True) | {
                 "clients": rows("SELECT * FROM clients ORDER BY name") if clients_allowed else [],
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
                 "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],

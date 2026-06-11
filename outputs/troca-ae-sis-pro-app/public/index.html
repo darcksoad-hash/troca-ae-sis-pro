@@ -156,7 +156,7 @@
     <main>
       <header>
         <div><h1 id="title">Painel</h1><div class="sub" id="subtitle">Dados salvos no banco do sistema.</div></div>
-        <div class="toolbar"><button class="btn primary" onclick="can('os','criar') ? orderForm() : render('orders')">+ Nova OS</button><button class="btn" onclick="passwordForm()">Trocar senha</button><button class="btn" onclick="logout()">Sair</button></div>
+        <div class="toolbar"><button class="btn primary" onclick="openOrderForm()">+ Nova OS</button><button class="btn" onclick="passwordForm()">Trocar senha</button><button class="btn" onclick="logout()">Sair</button></div>
       </header>
       <div id="content"></div>
     </main>
@@ -171,6 +171,8 @@
     let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
     const pageSize = 20;
     const pageState = {};
+    const loadedPages = new Set();
+    const orderPartsCache = {};
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -237,6 +239,7 @@
     async function boot() {
       document.getElementById('login').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
+      loadedPages.clear();
       state = await api('/api/bootstrap-lite');
       applyBranding();
       updateSidebarPin();
@@ -361,18 +364,40 @@
       return '#f9732f';
     }
 
-    async function ensureFullData() {
-      if (state.full) return;
-      document.getElementById('content').innerHTML = '<div class="panel"><div class="panel-body muted">Carregando dados completos...</div></div>';
-      state = await api('/api/bootstrap');
+    function normalizePage(page) {
+      return page === 'users' ? 'settings' : page;
+    }
+
+    function mergeState(data) {
+      state = { ...state, ...data };
       applyBranding();
       applyPermissions();
     }
 
-    async function render(page) {
-      if (['clients','orders','catalog','parts','services','pos','finance','reports','settings','users'].includes(page)) {
-        await ensureFullData();
+    async function refreshPageData(page) {
+      const targetPage = normalizePage(page);
+      const data = await api(`/api/page-data/${targetPage}`);
+      mergeState(data);
+      loadedPages.add(targetPage);
+    }
+
+    function invalidatePages(...pages) {
+      pages.map(normalizePage).forEach(page => loadedPages.delete(page));
+      if (pages.some(page => ['parts','catalog','orders'].includes(normalizePage(page)))) {
+        Object.keys(orderPartsCache).forEach(key => delete orderPartsCache[key]);
       }
+    }
+
+    async function ensurePageData(page) {
+      const targetPage = normalizePage(page);
+      if (!['clients','orders','catalog','parts','services','pos','finance','reports','settings'].includes(targetPage)) return;
+      if (loadedPages.has(targetPage)) return;
+      document.getElementById('content').innerHTML = '<div class="panel"><div class="panel-body muted">Carregando dados...</div></div>';
+      await refreshPageData(targetPage);
+    }
+
+    async function render(page) {
+      await ensurePageData(page);
       const names = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
       document.getElementById('title').textContent = names[page] || 'Painel';
       if (page === 'dashboard') renderDashboard();
@@ -472,7 +497,8 @@
         event.preventDefault();
         const data = Object.fromEntries(new FormData(event.currentTarget).entries());
         await api(`/api/clients${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
-        state = await api('/api/bootstrap');
+        invalidatePages('orders', 'pos');
+        await refreshPageData('clients');
         renderClients();
       };
     }
@@ -502,7 +528,7 @@
       const rows = paginate('orders', list);
       if (!selectedOrderId || !list.some(order => order.id === selectedOrderId)) selectedOrderId = list[0]?.id || state.orders[0]?.id || '';
       document.getElementById('content').innerHTML = `<div class="panel">
-        <div class="panel-head"><h2>Painel operacional de OS</h2>${can('os','criar') ? '<button class="btn primary" onclick="orderForm()">+ Nova OS</button>' : ''}</div>
+        <div class="panel-head"><h2>Painel operacional de OS</h2>${can('os','criar') ? '<button class="btn primary" onclick="openOrderForm()">+ Nova OS</button>' : ''}</div>
         <div class="panel-body">
           <div class="filters">
             <input id="orderSearch" placeholder="Buscar por cliente, aparelho, OS ou tecnico" value="${query}" oninput="resetPage('orders'); renderOrders()">
@@ -545,7 +571,7 @@
         <div class="panel-body grid">
           <div class="detail-top"><div><h2 style="margin:0 0 4px">${order.client_name}</h2><div class="muted">${order.device_brand || ''} ${order.device_model || ''} | IMEI ${order.device_imei || 'nao informado'}</div></div><div class="money">${money(order.calc?.total || 0)}</div></div>
           <div class="detail-actions">
-            ${can('os','editar') ? `<button class="primary" onclick="orderForm('${order.id}')">Editar</button>` : ''}
+            ${can('os','editar') ? `<button class="primary" onclick="openOrderForm('${order.id}')">Editar</button>` : ''}
             ${can('financeiro','pagar') ? `<button onclick="payOrder('${order.id}')">Pagamentos</button>` : ''}
             ${can('os','finalizar') ? `<button onclick="finishOrder('${order.id}')">Finalizar OS</button>` : ''}
             ${can('os','imprimir') ? `<button onclick="printOrder('${order.id}')">Imprimir OS</button>` : ''}
@@ -602,6 +628,21 @@
       return [];
     }
 
+    async function loadOrderParts(manufacturerId, modelId) {
+      if (!manufacturerId && !modelId) return [];
+      const key = `${manufacturerId || ''}:${modelId || ''}`;
+      if (orderPartsCache[key]) return orderPartsCache[key];
+      const params = new URLSearchParams();
+      if (manufacturerId) params.set('manufacturer_id', manufacturerId);
+      if (modelId) params.set('model_id', modelId);
+      const parts = await api(`/api/order-parts?${params.toString()}`);
+      orderPartsCache[key] = parts;
+      const current = new Map(state.parts.map(part => [part.id, part]));
+      parts.forEach(part => current.set(part.id, { ...(current.get(part.id) || {}), ...part }));
+      state.parts = Array.from(current.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      return parts;
+    }
+
     function modelSelectOptions(manufacturerId, selected = '') {
       const models = modelsForManufacturer(manufacturerId);
       return `<option value="">Selecione o modelo</option>${models.map(model => `<option value="${model.id}" ${selected === model.id ? 'selected' : ''}>${model.name}${model.year ? ` - ${model.year}` : ''}</option>`).join('')}`;
@@ -636,19 +677,33 @@
       if (model) form.device_model.value = model.name;
     }
 
-    function syncOrderParts() {
+    async function syncOrderParts() {
       const form = document.getElementById('orderForm');
       if (!form) return;
+      document.getElementById('orderPartsList').innerHTML = '<div class="muted">Carregando pecas do modelo...</div>';
+      await loadOrderParts(form.device_manufacturer_id.value, form.device_model_id.value);
       document.getElementById('orderPartsList').innerHTML = orderPartOptions(form.device_manufacturer_id.value, form.device_model_id.value);
     }
 
-    function orderForm(id = '') {
+    async function openOrderForm(id = '') {
+      if (!can('os','criar') && !id) return render('orders');
+      await ensurePageData('orders');
+      await orderForm(id);
+    }
+
+    async function orderForm(id = '') {
       const item = state.orders.find(order => order.id === id) || {};
       const selectedParts = (item.parts || []).map(part => part.id);
       const selectedServices = (item.services || []).map(service => service.id);
       const defaultManufacturer = item.device_manufacturer_id || state.manufacturers[0]?.id || '';
       const defaultModel = item.device_model_id || modelsForManufacturer(defaultManufacturer)[0]?.id || '';
       const defaultModelName = item.device_model || state.models.find(model => model.id === defaultModel)?.name || '';
+      if (item.parts?.length) {
+        const current = new Map(state.parts.map(part => [part.id, part]));
+        item.parts.forEach(part => current.set(part.id, { ...(current.get(part.id) || {}), ...part }));
+        state.parts = Array.from(current.values());
+      }
+      if (defaultManufacturer || defaultModel) await loadOrderParts(defaultManufacturer, defaultModel);
       document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>${id ? `Editar OS #${item.number}` : 'Nova OS'}</h2></div><div class="panel-body">
         <form class="form-grid" id="orderForm">
           <label>Cliente<select name="client_id" required>${state.clients.map(c => `<option value="${c.id}" ${item.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></label>
@@ -700,7 +755,8 @@
         data.device_brand = manufacturerName(data.device_manufacturer_id);
         const savedOrder = await api(`/api/orders${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
         if (photoFiles.length) await uploadPhotos(savedOrder.id, photoFiles, false);
-        state = await api('/api/bootstrap');
+        invalidatePages('dashboard', 'finance', 'reports');
+        await refreshPageData('orders');
         renderOrders();
       };
     }
@@ -709,7 +765,8 @@
       const amount = prompt('Valor do pagamento');
       if (!amount) return;
       await api(`/api/orders/${id}/payment`, { method:'POST', body: JSON.stringify({ amount: Number(amount), payment_method: 'PIX' }) });
-      state = await api('/api/bootstrap');
+      invalidatePages('dashboard', 'finance', 'reports');
+      await refreshPageData('orders');
       selectedOrderId = id;
       renderOrders();
     }
@@ -717,7 +774,8 @@
     async function finishOrder(id) {
       if (!confirm('Finalizar esta OS e baixar estoque das pecas usadas?')) return;
       await api(`/api/orders/${id}/finish`, { method:'POST', body: JSON.stringify({}) });
-      state = await api('/api/bootstrap');
+      invalidatePages('dashboard', 'parts', 'finance', 'reports');
+      await refreshPageData('orders');
       selectedOrderId = id;
       renderOrders();
     }
@@ -786,7 +844,8 @@
       if (!canvas) return;
       const signature = canvas.toDataURL('image/png');
       await api(`/api/orders/${id}/${type === 'approval' ? 'approve' : 'deliver'}`, { method:'POST', body: JSON.stringify({ signature }) });
-      state = await api('/api/bootstrap');
+      invalidatePages('dashboard', 'reports');
+      await refreshPageData('orders');
       selectedOrderId = id;
       renderOrders();
     }
@@ -877,7 +936,7 @@
         });
       }
       if (!refresh) return;
-      state = await api('/api/bootstrap');
+      await refreshPageData('orders');
       selectedOrderId = orderId;
       renderOrders();
     }
@@ -1090,8 +1149,13 @@
       document.getElementById('genericForm').onsubmit = async event => {
         event.preventDefault();
         await onSubmit(new FormData(event.currentTarget));
-        state = await api('/api/bootstrap');
-        render(backPage);
+        invalidatePages('dashboard', 'reports');
+        if (backPage === 'catalog') invalidatePages('orders', 'parts');
+        if (backPage === 'parts') invalidatePages('orders', 'pos', 'dashboard');
+        if (backPage === 'services') invalidatePages('orders', 'reports');
+        if (backPage === 'users') invalidatePages('settings');
+        await refreshPageData(backPage);
+        await render(backPage);
       };
     }
 
@@ -1219,8 +1283,9 @@
     async function removeRecord(section, id, page) {
       if (!confirm('Excluir este registro?')) return;
       await api(`/api/${section}/${id}`, { method:'DELETE' });
-      state = await api('/api/bootstrap');
-      render(page);
+      invalidatePages('dashboard', 'reports', 'orders', 'parts', 'pos', 'finance');
+      await refreshPageData(page);
+      await render(page);
     }
 
     function safeJson(value, fallback) {
@@ -1706,7 +1771,7 @@
 
     async function unlockUser(id) {
       await api(`/api/users/${id}/unlock`, { method:'POST', body: JSON.stringify({}) });
-      state = await api('/api/bootstrap');
+      await refreshPageData('settings');
       renderSettings();
     }
 
