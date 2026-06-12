@@ -47,6 +47,46 @@ Opcoes boas:
 - Render, Railway, Fly.io ou similar.
 - Docker com PostgreSQL separado.
 
+## Deploy gratuito recomendado na Koyeb com Neon
+
+Arquivos preparados na raiz do repositorio:
+
+- `Dockerfile`: empacota o ERP Python para a Koyeb.
+- `.dockerignore`: evita enviar dados locais, backups, uploads e logs.
+
+Na Koyeb:
+
+1. Criar um Web Service novo.
+2. Conectar o GitHub.
+3. Selecionar o repositorio `darcksoad-hash/troca-ae-sis-pro`.
+4. Escolher deploy por `Dockerfile`.
+5. Manter a instancia `Free`, quando disponivel.
+6. Configurar a porta HTTP usando a variavel automatica `PORT` da Koyeb.
+7. Cadastrar as variaveis abaixo:
+
+```text
+DATABASE_URL=preencher com a conexao PostgreSQL do Neon
+HOST=0.0.0.0
+APP_ENV=production
+RUN_STARTUP_TASKS=1
+APP_URL=https://seu-app.koyeb.app
+SMTP_HOST=smtp.seu-provedor.com
+SMTP_PORT=587
+SMTP_USER=seu-email@dominio.com
+SMTP_PASSWORD=senha-ou-app-password
+SMTP_FROM=seu-email@dominio.com
+```
+
+Depois do deploy, testar:
+
+```text
+https://seu-app.koyeb.app/api/health
+```
+
+Se responder `ok: true` e `database: postgres`, o ERP esta rodando na Koyeb com o banco Neon.
+
+Observacao: a instancia gratuita da Koyeb tambem pode dormir quando fica sem trafego, mas o prazo de inatividade tende a ser maior que o do Render Free. Para uso comercial sem lentidao de primeira abertura, use instancia paga pequena ou mantenha monitoramento externo.
+
 ## Deploy gratuito recomendado na Render
 
 Arquivos ja preparados:

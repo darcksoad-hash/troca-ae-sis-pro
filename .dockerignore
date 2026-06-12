@@ -1,0 +1,11 @@
+.git
+.github
+work
+*.pyc
+__pycache__/
+.env
+outputs/troca-ae-sis-pro-app/data/
+outputs/troca-ae-sis-pro-app/backups/
+outputs/troca-ae-sis-pro-app/uploads/
+outputs/troca-ae-sis-pro-app/server.log
+outputs/troca-ae-sis-pro-app/server.err
