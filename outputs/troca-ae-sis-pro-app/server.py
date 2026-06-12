@@ -38,6 +38,8 @@ LOCK_ATTEMPTS = 5
 LOCK_SECONDS = 15 * 60
 PG_CONN = None
 PG_LOCK = threading.RLock()
+DASHBOARD_CACHE = {"expires_at": 0, "data": None}
+DASHBOARD_CACHE_SECONDS = 20
 
 try:
     import psycopg
@@ -145,6 +147,11 @@ def send_email(to_email, subject, body):
     except Exception as error:
         print(f"[falha ao enviar email] {to_email}: {error}", flush=True)
         return False
+
+
+def clear_runtime_caches():
+    DASHBOARD_CACHE["expires_at"] = 0
+    DASHBOARD_CACHE["data"] = None
 
 
 def is_integrity_error(error):
@@ -442,31 +449,62 @@ def order_payload(order_id=None):
             ORDER BY number DESC""",
             params,
         ).fetchall()]
+        if not orders:
+            return None if order_id else []
+
+        order_ids = [order["id"] for order in orders]
+        placeholders = ",".join(["?"] * len(order_ids))
+
+        def grouped(query, key="order_id"):
+            result = {item: [] for item in order_ids}
+            for item in conn.execute(query, tuple(order_ids)).fetchall():
+                data = dict(item)
+                result.setdefault(data[key], []).append(data)
+            return result
+
+        parts_by_order = grouped(
+            f"""SELECT order_parts.*, parts.name, parts.sku
+            FROM order_parts JOIN parts ON parts.id = order_parts.part_id
+            WHERE order_id IN ({placeholders}) ORDER BY parts.name"""
+        )
+        services_by_order = grouped(
+            f"""SELECT order_services.*, services.name, services.duration
+            FROM order_services JOIN services ON services.id = order_services.service_id
+            WHERE order_id IN ({placeholders}) ORDER BY services.name"""
+        )
+        photos_by_order = grouped(
+            f"SELECT * FROM order_photos WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"
+        )
+        history_by_order = grouped(
+            f"""SELECT order_status_history.*, users.name AS user_name
+            FROM order_status_history
+            LEFT JOIN users ON users.id = order_status_history.user_id
+            WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"""
+        )
+        part_totals = {
+            item["order_id"]: item["total"]
+            for item in conn.execute(
+                f"SELECT order_id, COALESCE(SUM(unit_price*quantity),0) AS total FROM order_parts WHERE order_id IN ({placeholders}) GROUP BY order_id",
+                tuple(order_ids),
+            ).fetchall()
+        }
+        service_totals = {
+            item["order_id"]: item["total"]
+            for item in conn.execute(
+                f"SELECT order_id, COALESCE(SUM(labor),0) AS total FROM order_services WHERE order_id IN ({placeholders}) GROUP BY order_id",
+                tuple(order_ids),
+            ).fetchall()
+        }
         for order in orders:
-            order["parts"] = [dict(item) for item in conn.execute(
-                """SELECT order_parts.*, parts.name, parts.sku
-                FROM order_parts JOIN parts ON parts.id = order_parts.part_id
-                WHERE order_id=? ORDER BY parts.name""",
-                (order["id"],),
-            ).fetchall()]
-            order["services"] = [dict(item) for item in conn.execute(
-                """SELECT order_services.*, services.name, services.duration
-                FROM order_services JOIN services ON services.id = order_services.service_id
-                WHERE order_id=? ORDER BY services.name""",
-                (order["id"],),
-            ).fetchall()]
-            order["photos"] = [dict(item) for item in conn.execute(
-                "SELECT * FROM order_photos WHERE order_id=? ORDER BY created_at DESC",
-                (order["id"],),
-            ).fetchall()]
-            order["status_history"] = [dict(item) for item in conn.execute(
-                """SELECT order_status_history.*, users.name AS user_name
-                FROM order_status_history
-                LEFT JOIN users ON users.id = order_status_history.user_id
-                WHERE order_id=? ORDER BY created_at DESC""",
-                (order["id"],),
-            ).fetchall()]
-            order["calc"] = order_total(conn, order["id"])
+            part_total = float(part_totals.get(order["id"], 0) or 0)
+            service_total = float(service_totals.get(order["id"], 0) or 0)
+            paid = float(order["paid"] or 0)
+            total = part_total + service_total - float(order["discount"] or 0)
+            order["parts"] = parts_by_order.get(order["id"], [])
+            order["services"] = services_by_order.get(order["id"], [])
+            order["photos"] = photos_by_order.get(order["id"], [])
+            order["status_history"] = history_by_order.get(order["id"], [])
+            order["calc"] = {"total": total, "paid": paid, "balance": total - paid}
         return orders[0] if order_id and orders else (None if order_id else orders)
 
 
@@ -647,6 +685,7 @@ def seed():
         conn.commit()
     ensure_default_permissions()
     ensure_default_roles()
+    ensure_performance_indexes()
     if DB_ENGINE != "postgres":
         ensure_catalog()
         ensure_daily_backup()
@@ -699,6 +738,38 @@ def ensure_default_roles():
             exists = conn.execute("SELECT id FROM roles WHERE id=?", (role_id,)).fetchone()
             if not exists:
                 conn.execute("INSERT INTO roles(id,name,level,permissions) VALUES(?,?,?,?)", (role_id, name, level, json.dumps(permissions)))
+        conn.commit()
+
+
+def ensure_performance_indexes():
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name)",
+        "CREATE INDEX IF NOT EXISTS idx_clients_document ON clients(document)",
+        "CREATE INDEX IF NOT EXISTS idx_manufacturers_name ON manufacturers(name)",
+        "CREATE INDEX IF NOT EXISTS idx_models_manufacturer ON product_models(manufacturer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_models_name ON product_models(name)",
+        "CREATE INDEX IF NOT EXISTS idx_parts_manufacturer ON parts(manufacturer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_parts_name ON parts(name)",
+        "CREATE INDEX IF NOT EXISTS idx_parts_sku ON parts(sku)",
+        "CREATE INDEX IF NOT EXISTS idx_parts_stock ON parts(stock, min_stock)",
+        "CREATE INDEX IF NOT EXISTS idx_orders_client ON service_orders(client_id)",
+        "CREATE INDEX IF NOT EXISTS idx_orders_status ON service_orders(status)",
+        "CREATE INDEX IF NOT EXISTS idx_orders_due ON service_orders(due)",
+        "CREATE INDEX IF NOT EXISTS idx_orders_number ON service_orders(number)",
+        "CREATE INDEX IF NOT EXISTS idx_order_parts_order ON order_parts(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_order_services_order ON order_services(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_order_photos_order ON order_photos(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_order_history_order ON order_status_history(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_finance_date ON finance_entries(date)",
+        "CREATE INDEX IF NOT EXISTS idx_finance_type_status ON finance_entries(type, status)",
+        "CREATE INDEX IF NOT EXISTS idx_finance_order ON finance_entries(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_stock_movements_created ON stock_movements(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_stock_movements_part ON stock_movements(part_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pos_sales_date ON pos_sales(date)",
+    ]
+    with db() as conn:
+        for statement in indexes:
+            conn.execute(statement)
         conn.commit()
 
 
@@ -965,9 +1036,9 @@ class App(BaseHTTPRequestHandler):
                 "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],
                 "parts": rows("SELECT * FROM parts ORDER BY name") if stock_allowed else [],
                 "suppliers": rows("SELECT * FROM suppliers ORDER BY name") if stock_allowed else [],
-                "stock_movements": rows("SELECT * FROM stock_movements ORDER BY created_at DESC") if stock_allowed else [],
-                "purchases": rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC") if stock_allowed else [],
-                "purchase_items": rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else [],
+                "stock_movements": rows("SELECT * FROM stock_movements ORDER BY created_at DESC LIMIT 300") if stock_allowed else [],
+                "purchases": rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC LIMIT 100") if stock_allowed else [],
+                "purchase_items": [],
             }
         if page == "services":
             return payload | {"services": rows("SELECT * FROM services ORDER BY name") if self.has_permission(user, "servicos", "ver") else []}
@@ -1002,7 +1073,11 @@ class App(BaseHTTPRequestHandler):
                 "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if allowed else [],
             }
         if page == "reports":
-            return self.page_payload(user, "orders") | self.page_payload(user, "parts") | self.page_payload(user, "finance") | self.page_payload(user, "services") | self.page_payload(user, "catalog")
+            report_payload = self.page_payload(user, "orders") | self.page_payload(user, "parts") | self.page_payload(user, "finance") | self.page_payload(user, "services") | self.page_payload(user, "catalog")
+            if self.has_permission(user, "estoque", "ver"):
+                report_payload["stock_movements"] = rows("SELECT * FROM stock_movements ORDER BY created_at DESC")
+                report_payload["purchases"] = rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC")
+            return report_payload
         return payload
 
     def serve_file(self, base, rel):
@@ -1100,6 +1175,7 @@ class App(BaseHTTPRequestHandler):
             return
         try:
             self.api_post(path, user)
+            clear_runtime_caches()
         except Exception as error:
             traceback.print_exc()
             self.send_json({"error": f"Erro interno: {error}"}, 500)
@@ -1110,6 +1186,7 @@ class App(BaseHTTPRequestHandler):
         if not user:
             return
         self.api_delete(path, user)
+        clear_runtime_caches()
 
     def api_get(self, path):
         if path == "/api/health":
@@ -1132,6 +1209,9 @@ class App(BaseHTTPRequestHandler):
         if path == "/api/me":
             self.send_json(self.user_payload(user))
         elif path == "/api/dashboard":
+            if DASHBOARD_CACHE["data"] and DASHBOARD_CACHE["expires_at"] > time.time():
+                self.send_json(DASHBOARD_CACHE["data"])
+                return
             with db() as conn:
                 summary = row_dict(conn.execute(
                     """SELECT
@@ -1157,6 +1237,8 @@ class App(BaseHTTPRequestHandler):
                     for item in conn.execute("SELECT name, stock, min_stock FROM parts WHERE stock <= min_stock ORDER BY stock, name LIMIT 3").fetchall()
                 ]
             summary.update({"order_statuses": order_statuses, "overdue_orders": overdue_orders, "low_parts": low_parts})
+            DASHBOARD_CACHE["data"] = summary
+            DASHBOARD_CACHE["expires_at"] = time.time() + DASHBOARD_CACHE_SECONDS
             self.send_json(summary)
         elif path.startswith("/api/page-data/"):
             page = path.split("/")[-1]

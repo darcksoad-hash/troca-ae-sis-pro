@@ -212,6 +212,8 @@
     const pageState = {};
     const loadedPages = new Set();
     const orderPartsCache = {};
+    const filterTimers = {};
+    let dashboardCache = { expiresAt: 0, data: null };
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -453,6 +455,12 @@
       pageState[key] = 1;
     }
 
+    function scheduleFilter(key, callback, delay = 250) {
+      resetPage(key);
+      clearTimeout(filterTimers[key]);
+      filterTimers[key] = setTimeout(() => window[callback]?.(), delay);
+    }
+
     function changePage(key, direction, callback) {
       pageState[key] = (pageState[key] || 1) + Number(direction || 0);
       window[callback]?.();
@@ -503,6 +511,9 @@
 
     function invalidatePages(...pages) {
       pages.map(normalizePage).forEach(page => loadedPages.delete(page));
+      if (pages.some(page => normalizePage(page) === 'dashboard')) {
+        dashboardCache = { expiresAt: 0, data: null };
+      }
       if (pages.some(page => ['parts','catalog','orders'].includes(normalizePage(page)))) {
         Object.keys(orderPartsCache).forEach(key => delete orderPartsCache[key]);
       }
@@ -534,7 +545,10 @@
     }
 
     async function renderDashboard() {
-      const dash = await api('/api/dashboard');
+      const dash = dashboardCache.expiresAt > Date.now() && dashboardCache.data
+        ? dashboardCache.data
+        : await api('/api/dashboard');
+      dashboardCache = { data: dash, expiresAt: Date.now() + 20000 };
       const openOrders = dash.overdue_orders || state.orders.filter(order => !['Finalizada','Cancelada'].includes(order.status));
       const statuses = dash.order_statuses || state.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
       const maxStatus = Math.max(1, ...Object.values(statuses));
@@ -591,7 +605,7 @@
       document.getElementById('content').innerHTML = `<div class="panel">
         <div class="panel-head"><h2>Cadastro de clientes</h2>${can('clientes','criar') ? '<button class="btn primary" onclick="clientForm()">+ Cliente</button>' : ''}</div>
         <div class="panel-body">
-          <div class="filters"><input id="clientSearch" placeholder="Pesquisar em Cadastro de clientes" value="${query}" oninput="resetPage('clients'); renderClients()"><span></span><span></span></div>
+          <div class="filters"><input id="clientSearch" placeholder="Pesquisar em Cadastro de clientes" value="${query}" oninput="scheduleFilter('clients','renderClients')"><span></span><span></span></div>
           <table><thead><tr><th>Nome</th><th>Contato</th><th>Endereco</th><th>Observacoes</th><th>Acoes</th></tr></thead><tbody>
             ${rows.map(c => `<tr><td><strong>${c.name}</strong><br><span class="muted">${c.document || ''}</span></td><td>${c.phone || ''}<br><span class="muted">${c.email || ''}</span></td><td>${[c.street,c.number,c.neighborhood,c.city,c.state].filter(Boolean).join(' - ')}</td><td>${c.notes || ''}</td><td><div class="actions">${can('clientes','editar') ? `<button class="icon-btn" title="Editar" onclick="clientForm('${c.id}')">E</button>` : ''} ${can('clientes','excluir') ? `<button class="icon-btn" title="Excluir" onclick="removeRecord('clients','${c.id}','clients')">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum cliente encontrado.</td></tr>'}
           </tbody></table>${pager('clients', list.length, 'renderClients')}
@@ -651,7 +665,7 @@
         <div class="panel-head"><h2>Painel operacional de OS</h2>${can('os','criar') ? '<button class="btn primary" onclick="openOrderForm()">+ Nova OS</button>' : ''}</div>
         <div class="panel-body">
           <div class="filters">
-            <input id="orderSearch" placeholder="Buscar por cliente, aparelho, OS ou tecnico" value="${query}" oninput="resetPage('orders'); renderOrders()">
+            <input id="orderSearch" placeholder="Buscar por cliente, aparelho, OS ou tecnico" value="${query}" oninput="scheduleFilter('orders','renderOrders')">
             <select id="orderStatus" onchange="resetPage('orders'); renderOrders()"><option value="">Todos os status</option>${osStatuses.map(item => `<option ${status === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
             <select id="orderPriority" onchange="resetPage('orders'); renderOrders()"><option value="">Todas prioridades</option>${['Normal','Alta','Urgente'].map(item => `<option ${priority === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
           </div>
@@ -1141,7 +1155,7 @@
       document.getElementById('content').innerHTML = `<div class="grid two">
         <div class="panel"><div class="panel-head"><h2>Pecas e estoque</h2>${can('estoque','criar') ? '<button class="btn primary" onclick="partForm()">+ Peca</button>' : ''}</div><div class="panel-body">
           <div class="filters">
-            <input id="partsSearch" placeholder="Pesquisar peca, SKU, modelo ou fabricante" value="${query}" oninput="resetPage('parts'); renderParts()">
+            <input id="partsSearch" placeholder="Pesquisar peca, SKU, modelo ou fabricante" value="${query}" oninput="scheduleFilter('parts','renderParts')">
             <select id="partsManufacturer" onchange="resetPage('parts'); renderParts()"><option value="">Todos fabricantes</option>${state.manufacturers.map(m => `<option value="${m.id}" ${manufacturer === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select>
             <select id="partsStockFilter" onchange="resetPage('parts'); renderParts()"><option value="">Todo estoque</option><option value="low" ${stockFilter === 'low' ? 'selected' : ''}>Estoque baixo</option><option value="zero" ${stockFilter === 'zero' ? 'selected' : ''}>Sem estoque</option></select>
           </div>
@@ -1150,13 +1164,13 @@
           </tbody></table>${pager('parts', list.length, 'renderParts')}
         </div></div>
         <div class="panel"><div class="panel-head"><h2>Fornecedores</h2></div><div class="panel-body">
-          <div class="filters"><input id="supplierSearch" placeholder="Pesquisar fornecedor, documento ou contato" value="${supplierQuery}" oninput="resetPage('suppliers'); renderParts()"><span></span><span></span></div>
+          <div class="filters"><input id="supplierSearch" placeholder="Pesquisar fornecedor, documento ou contato" value="${supplierQuery}" oninput="scheduleFilter('suppliers','renderParts')"><span></span><span></span></div>
           <table><thead><tr><th>Fornecedor</th><th>Contato</th><th>Observacoes</th></tr></thead><tbody>
             ${supplierRows.map(s => `<tr><td><strong>${s.name}</strong><br><span class="muted">${s.document || ''}</span></td><td>${s.phone || ''}<br><span class="muted">${s.email || ''}</span></td><td>${s.notes || ''}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nenhum fornecedor cadastrado.</td></tr>'}
           </tbody></table>${pager('suppliers', state.suppliers.filter(supplier => textMatch(supplier, supplierQuery)).length, 'renderParts')}
         </div></div>
         <div class="panel" style="grid-column:1/-1"><div class="panel-head"><h2>Historico de movimentacao</h2>${can('estoque','movimentar') ? '<button class="btn primary" onclick="purchaseForm()">+ Entrada de compra</button>' : ''}</div><div class="panel-body">
-          <div class="filters"><input id="movementSearch" placeholder="Pesquisar peca, motivo ou fornecedor" value="${movementQuery}" oninput="resetPage('movements'); renderParts()"><select id="movementTypeFilter" onchange="resetPage('movements'); renderParts()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(type => `<option ${movementType === type ? 'selected' : ''}>${type}</option>`).join('')}</select><span></span></div>
+          <div class="filters"><input id="movementSearch" placeholder="Pesquisar peca, motivo ou fornecedor" value="${movementQuery}" oninput="scheduleFilter('movements','renderParts')"><select id="movementTypeFilter" onchange="resetPage('movements'); renderParts()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(type => `<option ${movementType === type ? 'selected' : ''}>${type}</option>`).join('')}</select><span></span></div>
           <table><thead><tr><th>Data</th><th>Tipo</th><th>Peca</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>
             ${movementRows.map(m => `<tr><td>${m.created_at || ''}</td><td>${badge(m.type)}</td><td>${partName(m.part_id)}</td><td>${m.quantity || ''}</td><td>${m.reason || ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma movimentacao registrada.</td></tr>'}
           </tbody></table>${pager('movements', (state.stock_movements || []).filter(mov => textMatch(mov, movementQuery) && (!movementType || mov.type === movementType)).length, 'renderParts')}
@@ -1215,13 +1229,13 @@
       const modelRows = paginate('models', models);
       document.getElementById('content').innerHTML = `<div class="grid two">
         <div class="panel"><div class="panel-head"><h2>Fabricantes</h2>${can('fabricantes','criar') ? '<button class="btn primary" onclick="manufacturerForm()">+ Fabricante</button>' : ''}</div><div class="panel-body">
-          <div class="filters"><input id="catalogSearch" placeholder="Pesquisar fabricante, site ou observacao" value="${query}" oninput="resetPage('manufacturers'); renderCatalog()"><span></span><span></span></div>
+          <div class="filters"><input id="catalogSearch" placeholder="Pesquisar fabricante, site ou observacao" value="${query}" oninput="scheduleFilter('manufacturers','renderCatalog')"><span></span><span></span></div>
           <table><thead><tr><th>Fabricante</th><th>Suporte</th><th>Site</th><th>Modelos</th><th>Observacoes</th><th>Acoes</th></tr></thead><tbody>
             ${manufacturerRows.map(m => `<tr><td><strong>${m.name}</strong></td><td>${m.support_phone || ''}</td><td>${m.site || ''}</td><td>${state.models.filter(model => model.manufacturer_id === m.id).length}</td><td>${m.notes || ''}</td><td><div class="actions">${can('fabricantes','editar') ? `<button class="icon-btn" onclick="manufacturerForm('${m.id}')" title="Editar">E</button>` : ''} ${can('fabricantes','excluir') ? `<button class="icon-btn" onclick="removeRecord('manufacturers','${m.id}','catalog')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="6">Nenhum fabricante encontrado.</td></tr>'}
           </tbody></table>${pager('manufacturers', manufacturers.length, 'renderCatalog')}
         </div></div>
         <div class="panel"><div class="panel-head"><h2>Modelos de produtos</h2>${can('fabricantes','criar') ? '<button class="btn primary" onclick="modelForm()">+ Modelo</button>' : ''}</div><div class="panel-body">
-          <div class="filters"><input id="modelSearch" placeholder="Pesquisar modelo ou fabricante" value="${modelQuery}" oninput="resetPage('models'); renderCatalog()"><select id="modelManufacturerFilter" onchange="resetPage('models'); renderCatalog()"><option value="">Todos fabricantes</option>${state.manufacturers.map(m => `<option value="${m.id}" ${modelManufacturer === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><input id="modelYearFilter" type="number" placeholder="Ano" value="${modelYear}" oninput="resetPage('models'); renderCatalog()"></div>
+          <div class="filters"><input id="modelSearch" placeholder="Pesquisar modelo ou fabricante" value="${modelQuery}" oninput="scheduleFilter('models','renderCatalog')"><select id="modelManufacturerFilter" onchange="resetPage('models'); renderCatalog()"><option value="">Todos fabricantes</option>${state.manufacturers.map(m => `<option value="${m.id}" ${modelManufacturer === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}</select><input id="modelYearFilter" type="number" placeholder="Ano" value="${modelYear}" oninput="scheduleFilter('models','renderCatalog')"></div>
           <table><thead><tr><th>Modelo</th><th>Fabricante</th><th>Ano</th><th>Acoes</th></tr></thead><tbody>
             ${modelRows.map(m => `<tr><td><strong>${m.name}</strong><br><span class="muted">${m.category || ''}</span></td><td>${manufacturerName(m.manufacturer_id)}</td><td>${m.year || ''}</td><td><div class="actions">${can('fabricantes','editar') ? `<button class="icon-btn" onclick="modelForm('${m.id}')" title="Editar">E</button>` : ''} ${can('fabricantes','excluir') ? `<button class="icon-btn" onclick="removeRecord('models','${m.id}','catalog')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="4">Nenhum modelo encontrado.</td></tr>'}
           </tbody></table>${pager('models', models.length, 'renderCatalog')}
@@ -1235,7 +1249,7 @@
       const list = state.services.filter(service => textMatch(service, query));
       const rows = paginate('services', list);
       document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-head"><h2>Tabela de servicos</h2>${can('servicos','criar') ? '<button class="btn primary" onclick="serviceForm()">+ Servico</button>' : ''}</div><div class="panel-body">
-        <div class="filters"><input id="servicesSearch" placeholder="Pesquisar em Tabela de servicos" value="${query}" oninput="resetPage('services'); renderServices()"><span></span><span></span></div>
+        <div class="filters"><input id="servicesSearch" placeholder="Pesquisar em Tabela de servicos" value="${query}" oninput="scheduleFilter('services','renderServices')"><span></span><span></span></div>
         <table><thead><tr><th>Servico</th><th>Categoria</th><th>Valor</th><th>Garantia</th><th>Acoes</th></tr></thead><tbody>
           ${rows.map(s => `<tr><td><strong>${s.name}</strong><br><span class="muted">${s.category || ''}</span></td><td>${s.category || ''}</td><td><span class="money">${money(s.labor)}</span></td><td>${s.warranty_days} dias</td><td><div class="actions">${can('servicos','editar') ? `<button class="icon-btn" onclick="serviceForm('${s.id}')" title="Editar">E</button>` : ''} ${can('servicos','excluir') ? `<button class="icon-btn" onclick="removeRecord('services','${s.id}','services')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5">Nenhum servico encontrado.</td></tr>'}
         </tbody></table>${pager('services', list.length, 'renderServices')}
@@ -1429,7 +1443,7 @@
           <div class="kpi"><span>Reposicao</span><strong>${state.parts.filter(part => reorderQty(part) > 0).length}</strong><small>Itens sugeridos</small></div>
         </div>
         <div class="panel"><div class="panel-head"><h2>Vendas / PDV</h2>${can('pdv','criar') ? '<button class="btn primary" onclick="posForm()">+ Venda</button>' : ''}</div><div class="panel-body">
-          <div class="filters"><input id="posSearch" placeholder="Pesquisar venda, cliente ou pagamento" value="${query}" oninput="resetPage('pos'); renderPOS()"><span></span><span></span></div>
+          <div class="filters"><input id="posSearch" placeholder="Pesquisar venda, cliente ou pagamento" value="${query}" oninput="scheduleFilter('pos','renderPOS')"><span></span><span></span></div>
           <table><thead><tr><th>Venda</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Status</th><th>Total</th></tr></thead><tbody>
             ${rows.map(sale => `<tr><td><strong>#${sale.number}</strong></td><td>${sale.date}</td><td>${clientName(sale.client_id) || 'Cliente avulso'}</td><td>${sale.payment_method || ''}</td><td>${badge(sale.status)}</td><td>${money(sale.total)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma venda registrada.</td></tr>'}
           </tbody></table>${pager('pos', sales.length, 'renderPOS')}
@@ -1535,7 +1549,7 @@
         </div>
         <div class="panel"><div class="panel-head"><h2>Lancamentos financeiros</h2>${can('financeiro','criar') ? '<button class="btn primary" onclick="financeForm()">+ Lancamento</button>' : ''}</div><div class="panel-body">
           <div class="filters">
-            <input id="financeSearch" placeholder="Buscar descricao, categoria, forma ou OS" value="${query}" oninput="resetPage('finance'); renderFinance()">
+            <input id="financeSearch" placeholder="Buscar descricao, categoria, forma ou OS" value="${query}" oninput="scheduleFilter('finance','renderFinance')">
             <select id="financeType" onchange="resetPage('finance'); renderFinance()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(item => `<option ${type === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
             <select id="financeStatus" onchange="resetPage('finance'); renderFinance()"><option value="">Todos status</option>${['Recebido','Pago','Pendente'].map(item => `<option ${status === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
           </div>
