@@ -1817,6 +1817,18 @@ class App(BaseHTTPRequestHandler):
         exists = row("SELECT id,email,password_hash,email_verified FROM users WHERE id=?", (item_id,))
         new_password = data.get("password", "")
         email = (data.get("email", "") or "").strip().lower()
+        if not data.get("name", "").strip() or not email:
+            self.send_json({"error": "Informe nome e e-mail do usuario."}, 400)
+            return
+        duplicate = row("SELECT id FROM users WHERE LOWER(email)=? AND id<>?", (email, item_id))
+        if duplicate:
+            self.send_json({"error": "Ja existe outro usuario com este e-mail."}, 400)
+            return
+        role_id = data.get("role_id", "")
+        role = row("SELECT id FROM roles WHERE id=?", (role_id,))
+        if not role:
+            self.send_json({"error": "Selecione um perfil valido para o usuario."}, 400)
+            return
         if new_password:
             error = password_strength_error(new_password)
             if error:
@@ -1827,7 +1839,7 @@ class App(BaseHTTPRequestHandler):
             email_changed = email and email != (exists.get("email") or "").lower()
             execute(
                 "UPDATE users SET name=?,email=?,role_id=?,status=?,email_verified=CASE WHEN ? THEN 0 ELSE email_verified END WHERE id=?",
-                (data.get("name", ""), email, data.get("role_id", ""), status, 1 if email_changed else 0, item_id),
+                (data.get("name", ""), email, role_id, status, 1 if email_changed else 0, item_id),
             )
             if status == "Ativo":
                 execute("UPDATE users SET failed_attempts=0, locked_until=NULL WHERE id=?", (item_id,))
@@ -1846,7 +1858,7 @@ class App(BaseHTTPRequestHandler):
                 return
             execute(
                 "INSERT INTO users(id,name,email,password_hash,role_id,status,password_changed_at,email_verified) VALUES(?,?,?,?,?,?,?,?)",
-                (item_id, data.get("name", ""), email, password_hash(password), data.get("role_id", "role-adm"), status, now(), 0),
+                (item_id, data.get("name", ""), email, password_hash(password), role_id, status, now(), 0),
             )
             target = row("SELECT id,name,email FROM users WHERE id=?", (item_id,))
             if target:
@@ -2037,6 +2049,21 @@ class App(BaseHTTPRequestHandler):
         if key == "users" and item_id == user["id"]:
             self.send_json({"error": "O usuario logado nao pode excluir a propria conta."}, 400)
             return
+        if key == "users":
+            target = row("SELECT users.id,users.email,roles.level FROM users JOIN roles ON roles.id=users.role_id WHERE users.id=?", (item_id,))
+            if not target:
+                self.send_json({"error": "Usuario nao encontrado."}, 404)
+                return
+            if int(target["level"] or 0) >= 100:
+                remaining_admins = row(
+                    """SELECT COUNT(*) AS total
+                    FROM users JOIN roles ON roles.id=users.role_id
+                    WHERE users.id<>? AND users.status='Ativo' AND roles.level>=100""",
+                    (item_id,),
+                )
+                if int(remaining_admins["total"] or 0) == 0:
+                    self.send_json({"error": "Nao e possivel remover o ultimo administrador ativo."}, 400)
+                    return
         try:
             execute(f"DELETE FROM {table} WHERE id=?", (item_id,))
             self.audit(user["id"], action, item_id)
@@ -2044,6 +2071,11 @@ class App(BaseHTTPRequestHandler):
         except Exception as error:
             if not is_integrity_error(error):
                 raise
+            if key == "users":
+                execute("UPDATE users SET status='Inativo', failed_attempts=0, locked_until=NULL WHERE id=?", (item_id,))
+                self.audit(user["id"], "Usuario inativado", item_id)
+                self.send_json({"ok": True, "message": "Usuario possui historico no sistema e foi inativado em vez de excluido."})
+                return
             self.send_json({"error": "Registro em uso. Remova os vinculos antes de excluir."}, 400)
 
     def audit(self, user_id, action, detail):

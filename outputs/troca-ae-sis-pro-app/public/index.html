@@ -1282,14 +1282,27 @@
       </div></div>`;
       document.getElementById('genericForm').onsubmit = async event => {
         event.preventDefault();
-        await onSubmit(new FormData(event.currentTarget));
-        invalidatePages('dashboard', 'reports');
-        if (backPage === 'catalog') invalidatePages('orders', 'parts');
-        if (backPage === 'parts') invalidatePages('orders', 'pos', 'dashboard');
-        if (backPage === 'services') invalidatePages('orders', 'reports');
-        if (backPage === 'users') invalidatePages('settings');
-        await refreshPageData(backPage);
-        await render(backPage);
+        const submitButton = event.currentTarget.querySelector('button.primary');
+        try {
+          if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Salvando...';
+          }
+          await onSubmit(new FormData(event.currentTarget));
+          invalidatePages('dashboard', 'reports');
+          if (backPage === 'catalog') invalidatePages('orders', 'parts');
+          if (backPage === 'parts') invalidatePages('orders', 'pos', 'dashboard');
+          if (backPage === 'services') invalidatePages('orders', 'reports');
+          if (backPage === 'users') invalidatePages('settings');
+          await refreshPageData(backPage);
+          await render(backPage);
+        } catch (error) {
+          alert(error.message || 'Nao foi possivel salvar este registro.');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Salvar';
+          }
+        }
       };
     }
 
@@ -1416,10 +1429,16 @@
 
     async function removeRecord(section, id, page) {
       if (!confirm('Excluir este registro?')) return;
-      await api(`/api/${section}/${id}`, { method:'DELETE' });
-      invalidatePages('dashboard', 'reports', 'orders', 'parts', 'pos', 'finance');
-      await refreshPageData(page);
-      await render(page);
+      try {
+        const result = await api(`/api/${section}/${id}`, { method:'DELETE' });
+        invalidatePages('dashboard', 'reports', 'orders', 'parts', 'pos', 'finance');
+        if (page === 'users' || page === 'settings') invalidatePages('settings');
+        if (result.message) alert(result.message);
+        await refreshPageData(page);
+        await render(page);
+      } catch (error) {
+        alert(error.message || 'Nao foi possivel excluir este registro.');
+      }
     }
 
     function safeJson(value, fallback) {
