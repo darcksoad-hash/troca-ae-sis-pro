@@ -606,19 +606,32 @@
       const targetPage = normalizePage(page);
       const sequence = ++renderSequence;
       setActivePage(targetPage);
-      await ensurePageData(targetPage);
-      if (sequence !== renderSequence || activePage !== targetPage) return;
-      if (targetPage === 'dashboard') await renderDashboard();
-      if (sequence !== renderSequence || activePage !== targetPage) return;
-      if (targetPage === 'clients') renderClients();
-      if (targetPage === 'orders') renderOrders();
-      if (targetPage === 'catalog') renderCatalog();
-      if (targetPage === 'parts') renderParts();
-      if (targetPage === 'services') renderServices();
-      if (targetPage === 'pos') renderPOS();
-      if (targetPage === 'finance') renderFinance();
-      if (targetPage === 'reports') renderReports();
-      if (targetPage === 'settings') renderSettings();
+      try {
+        await ensurePageData(targetPage);
+        if (sequence !== renderSequence || activePage !== targetPage) return;
+        if (targetPage === 'dashboard') await renderDashboard();
+        if (sequence !== renderSequence || activePage !== targetPage) return;
+        if (targetPage === 'clients') renderClients();
+        if (targetPage === 'orders') renderOrders();
+        if (targetPage === 'catalog') renderCatalog();
+        if (targetPage === 'parts') await renderParts();
+        if (targetPage === 'services') renderServices();
+        if (targetPage === 'pos') renderPOS();
+        if (targetPage === 'finance') renderFinance();
+        if (targetPage === 'reports') renderReports();
+        if (targetPage === 'settings') renderSettings();
+      } catch (error) {
+        if (sequence !== renderSequence || activePage !== targetPage) return;
+        const expired = String(error.message || '').toLowerCase().includes('login');
+        document.getElementById('content').innerHTML = `<div class="panel"><div class="panel-body">
+          <h2>Nao foi possivel carregar esta aba</h2>
+          <p class="muted">${error.message || 'Falha ao buscar os dados.'}</p>
+          <div class="actions">
+            <button class="btn primary" onclick="render('${targetPage}')">Tentar novamente</button>
+            ${expired ? '<button class="btn" onclick="logout()">Entrar novamente</button>' : ''}
+          </div>
+        </div></div>`;
+      }
     }
 
     async function renderDashboard() {
@@ -2193,7 +2206,15 @@
       boot().catch(() => logout());
     }
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
+      navigator.serviceWorker.register('/service-worker.js').then(registration => {
+        registration.update().catch(() => {});
+      }).catch(() => {});
     }
   </script>
 </body>
