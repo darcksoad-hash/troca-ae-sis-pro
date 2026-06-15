@@ -1837,9 +1837,10 @@ class App(BaseHTTPRequestHandler):
         status = data.get("status", "Ativo")
         if exists:
             email_changed = email and email != (exists.get("email") or "").lower()
+            email_verified = 0 if email_changed else int(exists.get("email_verified") or 0)
             execute(
-                "UPDATE users SET name=?,email=?,role_id=?,status=?,email_verified=CASE WHEN ? THEN 0 ELSE email_verified END WHERE id=?",
-                (data.get("name", ""), email, role_id, status, 1 if email_changed else 0, item_id),
+                "UPDATE users SET name=?,email=?,role_id=?,status=?,email_verified=? WHERE id=?",
+                (data.get("name", ""), email, role_id, status, email_verified, item_id),
             )
             if status == "Ativo":
                 execute("UPDATE users SET failed_attempts=0, locked_until=NULL WHERE id=?", (item_id,))
