@@ -16,7 +16,8 @@ import time
 import traceback
 import uuid
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from email.message import EmailMessage
 
 ROOT = Path(__file__).resolve().parent
@@ -271,6 +272,14 @@ def execute(sql, params=()):
     with db() as conn:
         conn.execute(sql, params)
         conn.commit()
+
+
+def json_default(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return str(value)
 
 
 def table_columns(conn, table):
@@ -986,7 +995,7 @@ def ensure_catalog():
 
 class App(BaseHTTPRequestHandler):
     def send_json(self, data, status=200):
-        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        payload = json.dumps(data, ensure_ascii=False, default=json_default).encode("utf-8")
         use_gzip = len(payload) > 1024 and "gzip" in self.headers.get("Accept-Encoding", "").lower()
         if use_gzip:
             payload = gzip.compress(payload, compresslevel=6)
@@ -1250,7 +1259,11 @@ class App(BaseHTTPRequestHandler):
             self.serve_file(UPLOADS, path.replace("/uploads/", "", 1))
             return
         if path.startswith("/api/"):
-            self.api_get(path)
+            try:
+                self.api_get(path)
+            except Exception as error:
+                traceback.print_exc()
+                self.send_json({"error": f"Erro interno: {error}"}, 500)
             return
         self.serve_file(PUBLIC, path)
 
