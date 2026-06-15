@@ -214,6 +214,7 @@
     const orderPartsCache = {};
     const filterTimers = {};
     let dashboardCache = { expiresAt: 0, data: null };
+    const pageCacheSeconds = 8 * 60;
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -368,6 +369,7 @@
       applyPermissions();
       const requestedPage = new URLSearchParams(location.search).get('page') || 'dashboard';
       await render(document.querySelector(`aside button[data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
+      setTimeout(prefetchPageData, 800);
     }
 
     function applyBranding() {
@@ -418,6 +420,7 @@
       }
       token = '';
       localStorage.removeItem('troca-ae-token');
+      clearPageCaches();
       document.getElementById('app').classList.add('hidden');
       document.getElementById('login').classList.remove('hidden');
     }
@@ -502,15 +505,53 @@
       applyPermissions();
     }
 
+    function pageCacheKey(page) {
+      return `troca-ae-page-${state.me?.id || 'anon'}-${normalizePage(page)}`;
+    }
+
+    function readPageCache(page) {
+      try {
+        const raw = sessionStorage.getItem(pageCacheKey(page));
+        if (!raw) return null;
+        const cached = JSON.parse(raw);
+        if (!cached?.expiresAt || cached.expiresAt < Date.now()) return null;
+        return cached.data;
+      } catch {
+        return null;
+      }
+    }
+
+    function writePageCache(page, data) {
+      try {
+        sessionStorage.setItem(pageCacheKey(page), JSON.stringify({ expiresAt: Date.now() + pageCacheSeconds * 1000, data }));
+      } catch {}
+    }
+
+    function removePageCache(page) {
+      try { sessionStorage.removeItem(pageCacheKey(page)); } catch {}
+    }
+
+    function clearPageCaches() {
+      try {
+        Object.keys(sessionStorage)
+          .filter(key => key.startsWith('troca-ae-page-'))
+          .forEach(key => sessionStorage.removeItem(key));
+      } catch {}
+    }
+
     async function refreshPageData(page) {
       const targetPage = normalizePage(page);
       const data = await api(`/api/page-data/${targetPage}`);
       mergeState(data);
       loadedPages.add(targetPage);
+      writePageCache(targetPage, data);
     }
 
     function invalidatePages(...pages) {
-      pages.map(normalizePage).forEach(page => loadedPages.delete(page));
+      pages.map(normalizePage).forEach(page => {
+        loadedPages.delete(page);
+        removePageCache(page);
+      });
       if (pages.some(page => normalizePage(page) === 'dashboard')) {
         dashboardCache = { expiresAt: 0, data: null };
       }
@@ -523,8 +564,25 @@
       const targetPage = normalizePage(page);
       if (!['clients','orders','catalog','parts','services','pos','finance','reports','settings'].includes(targetPage)) return;
       if (loadedPages.has(targetPage)) return;
+      const cached = readPageCache(targetPage);
+      if (cached) {
+        mergeState(cached);
+        loadedPages.add(targetPage);
+        refreshPageData(targetPage).catch(() => {});
+        return;
+      }
       document.getElementById('content').innerHTML = '<div class="panel"><div class="panel-body muted">Carregando dados...</div></div>';
       await refreshPageData(targetPage);
+    }
+
+    function prefetchPageData() {
+      const pages = ['clients','orders','catalog','services','finance','settings'];
+      let delay = 700;
+      pages.forEach(page => {
+        if (loadedPages.has(page) || readPageCache(page)) return;
+        setTimeout(() => refreshPageData(page).catch(() => {}), delay);
+        delay += 900;
+      });
     }
 
     async function render(page) {
@@ -686,17 +744,36 @@
           </div>
         </div>
       </div>`;
+      loadSelectedOrderDetail(selectedOrderId);
       restoreFocus();
     }
 
-    function selectOrder(id) {
+    async function selectOrder(id) {
       selectedOrderId = id;
       renderOrders();
+    }
+
+    async function loadSelectedOrderDetail(id) {
+      if (!id) return;
+      const order = state.orders.find(item => item.id === id);
+      if (!order || order.detail_loaded) return;
+      try {
+        const detail = await api(`/api/orders/${id}`);
+        state.orders = state.orders.map(item => item.id === id ? { ...item, ...detail, detail_loaded: true } : item);
+        if (selectedOrderId === id) {
+          const target = document.getElementById('orderDetail');
+          if (target) target.innerHTML = orderDetail(id);
+        }
+      } catch (error) {
+        const target = document.getElementById('orderDetail');
+        if (target && selectedOrderId === id) target.innerHTML = `<div class="panel"><div class="panel-body muted">Nao foi possivel carregar os detalhes da OS: ${error.message}</div></div>`;
+      }
     }
 
     function orderDetail(id) {
       const order = state.orders.find(item => item.id === id);
       if (!order) return `<div class="panel"><div class="panel-body muted">Selecione ou crie uma OS.</div></div>`;
+      if (!order.detail_loaded) return `<div class="panel"><div class="panel-head"><h2>OS #${order.number}</h2>${badge(order.status)}</div><div class="panel-body muted">Carregando detalhes da OS...</div></div>`;
       const parts = order.parts?.map(item => `${item.name} (${item.quantity}) - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhuma peca';
       const services = order.services?.map(item => `${item.name} - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhum servico';
       const history = order.status_history?.map(item => `<div class="summary-item"><strong>${item.old_status || 'Inicio'} -> ${item.new_status}</strong><span>${item.created_at || ''} ${item.user_name ? `por ${item.user_name}` : ''}<br>${item.note || ''}</span></div>`).join('') || '<div class="muted">Nenhuma movimentacao de status registrada.</div>';
@@ -822,6 +899,7 @@
     async function openOrderForm(id = '') {
       if (!can('os','criar') && !id) return render('orders');
       await ensurePageData('orders');
+      if (id) await loadSelectedOrderDetail(id);
       await orderForm(id);
     }
 
@@ -896,6 +974,7 @@
     }
 
     async function payOrder(id) {
+      await loadSelectedOrderDetail(id);
       const amount = prompt('Valor do pagamento');
       if (!amount) return;
       await api(`/api/orders/${id}/payment`, { method:'POST', body: JSON.stringify({ amount: Number(amount), payment_method: 'PIX' }) });
@@ -906,6 +985,7 @@
     }
 
     async function finishOrder(id) {
+      await loadSelectedOrderDetail(id);
       if (!confirm('Finalizar esta OS e baixar estoque das pecas usadas?')) return;
       await api(`/api/orders/${id}/finish`, { method:'POST', body: JSON.stringify({}) });
       invalidatePages('dashboard', 'parts', 'finance', 'reports');
@@ -914,7 +994,8 @@
       renderOrders();
     }
 
-    function signatureForm(id, type) {
+    async function signatureForm(id, type) {
+      await loadSelectedOrderDetail(id);
       const order = state.orders.find(item => item.id === id);
       if (!order) return;
       const isApproval = type === 'approval';
@@ -984,7 +1065,8 @@
       renderOrders();
     }
 
-    function sendOrderWhatsApp(id, type) {
+    async function sendOrderWhatsApp(id, type) {
+      await loadSelectedOrderDetail(id);
       const order = state.orders.find(item => item.id === id);
       const client = state.clients.find(item => item.id === order?.client_id) || {};
       if (!order) return;
@@ -1000,7 +1082,8 @@
       window.open(url, '_blank');
     }
 
-    function printOrder(id) {
+    async function printOrder(id) {
+      await loadSelectedOrderDetail(id);
       const order = state.orders.find(item => item.id === id);
       if (!order) return;
       const company = state.company || {};

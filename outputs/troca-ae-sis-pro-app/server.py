@@ -437,7 +437,7 @@ def order_total(conn, order_id):
     return {"total": total, "paid": paid, "balance": total - paid}
 
 
-def order_payload(order_id=None):
+def order_payload(order_id=None, include_details=True):
     where = "WHERE service_orders.id=?" if order_id else ""
     params = (order_id,) if order_id else ()
     with db() as conn:
@@ -462,25 +462,30 @@ def order_payload(order_id=None):
                 result.setdefault(data[key], []).append(data)
             return result
 
-        parts_by_order = grouped(
-            f"""SELECT order_parts.*, parts.name, parts.sku
-            FROM order_parts JOIN parts ON parts.id = order_parts.part_id
-            WHERE order_id IN ({placeholders}) ORDER BY parts.name"""
-        )
-        services_by_order = grouped(
-            f"""SELECT order_services.*, services.name, services.duration
-            FROM order_services JOIN services ON services.id = order_services.service_id
-            WHERE order_id IN ({placeholders}) ORDER BY services.name"""
-        )
-        photos_by_order = grouped(
-            f"SELECT * FROM order_photos WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"
-        )
-        history_by_order = grouped(
-            f"""SELECT order_status_history.*, users.name AS user_name
-            FROM order_status_history
-            LEFT JOIN users ON users.id = order_status_history.user_id
-            WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"""
-        )
+        parts_by_order = {}
+        services_by_order = {}
+        photos_by_order = {}
+        history_by_order = {}
+        if include_details:
+            parts_by_order = grouped(
+                f"""SELECT order_parts.*, parts.name, parts.sku
+                FROM order_parts JOIN parts ON parts.id = order_parts.part_id
+                WHERE order_id IN ({placeholders}) ORDER BY parts.name"""
+            )
+            services_by_order = grouped(
+                f"""SELECT order_services.*, services.name, services.duration
+                FROM order_services JOIN services ON services.id = order_services.service_id
+                WHERE order_id IN ({placeholders}) ORDER BY services.name"""
+            )
+            photos_by_order = grouped(
+                f"SELECT * FROM order_photos WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"
+            )
+            history_by_order = grouped(
+                f"""SELECT order_status_history.*, users.name AS user_name
+                FROM order_status_history
+                LEFT JOIN users ON users.id = order_status_history.user_id
+                WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"""
+            )
         part_totals = {
             item["order_id"]: item["total"]
             for item in conn.execute(
@@ -500,10 +505,11 @@ def order_payload(order_id=None):
             service_total = float(service_totals.get(order["id"], 0) or 0)
             paid = float(order["paid"] or 0)
             total = part_total + service_total - float(order["discount"] or 0)
-            order["parts"] = parts_by_order.get(order["id"], [])
-            order["services"] = services_by_order.get(order["id"], [])
-            order["photos"] = photos_by_order.get(order["id"], [])
-            order["status_history"] = history_by_order.get(order["id"], [])
+            order["detail_loaded"] = bool(include_details)
+            order["parts"] = parts_by_order.get(order["id"], []) if include_details else []
+            order["services"] = services_by_order.get(order["id"], []) if include_details else []
+            order["photos"] = photos_by_order.get(order["id"], []) if include_details else []
+            order["status_history"] = history_by_order.get(order["id"], []) if include_details else []
             order["calc"] = {"total": total, "paid": paid, "balance": total - paid}
         return orders[0] if order_id and orders else (None if order_id else orders)
 
@@ -1050,7 +1056,7 @@ class App(BaseHTTPRequestHandler):
                 "models": rows("SELECT * FROM product_models ORDER BY name") if order_allowed else [],
                 "parts": [],
                 "services": rows("SELECT * FROM services ORDER BY name") if order_allowed else [],
-                "orders": order_payload() if self.has_permission(user, "os", "ver") else [],
+                "orders": order_payload(include_details=False) if self.has_permission(user, "os", "ver") else [],
             }
         if page == "finance":
             allowed = self.has_permission(user, "financeiro", "ver")
@@ -1296,7 +1302,7 @@ class App(BaseHTTPRequestHandler):
                 "purchase_items": [] if lite else (rows("SELECT * FROM purchase_items ORDER BY id") if stock_allowed else []),
                 "roles": rows("SELECT id,name,level,permissions,created_at FROM roles ORDER BY level DESC") if self.has_permission(user, "configuracoes", "ver") else [],
                 "users": rows("SELECT users.id,users.name,users.email,users.role_id,users.status,users.failed_attempts,users.locked_until,users.last_login,users.password_changed_at,users.email_verified,users.created_at,roles.name AS role_name FROM users JOIN roles ON roles.id=users.role_id ORDER BY users.name") if self.has_permission(user, "configuracoes", "ver") else [],
-                "orders": [] if lite else (order_payload() if self.has_permission(user, "os", "ver") else []),
+                "orders": [] if lite else (order_payload(include_details=False) if self.has_permission(user, "os", "ver") else []),
                 "finance": [] if lite else (rows("SELECT * FROM finance_entries ORDER BY date DESC, due_date DESC") if self.has_permission(user, "financeiro", "ver") else []),
                 "cash_sessions": [] if lite else (rows("SELECT * FROM cash_sessions ORDER BY date DESC") if self.has_permission(user, "financeiro", "ver") else []),
                 "pos_sales": [] if lite else (rows("SELECT * FROM pos_sales ORDER BY date DESC, number DESC") if self.has_permission(user, "pdv", "ver") else []),

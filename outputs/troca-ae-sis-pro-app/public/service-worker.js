@@ -1,4 +1,4 @@
-const CACHE_NAME = 'troca-ae-sis-pro-v20';
+const CACHE_NAME = 'troca-ae-sis-pro-v21';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/troca-ae-logo.jpg'];
 
 self.addEventListener('install', event => {
