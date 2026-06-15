@@ -203,7 +203,7 @@
 
   <script>
     let token = localStorage.getItem('troca-ae-token') || '';
-    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[] };
+    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[], report_summary:{} };
     let selectedOrderId = '';
     let selectedUserId = '';
     let focusMemory = null;
@@ -582,6 +582,11 @@
         if (loadedPages.has(page) || readPageCache(page)) return;
         setTimeout(() => refreshPageData(page).catch(() => {}), delay);
         delay += 900;
+      });
+      ['parts','pos','reports'].forEach(page => {
+        if (loadedPages.has(page) || readPageCache(page)) return;
+        setTimeout(() => refreshPageData(page).catch(() => {}), delay + 1500);
+        delay += 1800;
       });
     }
 
@@ -1837,23 +1842,46 @@
       return [];
     }
 
+    async function loadFullReportsData() {
+      if (loadedPages.has('reports-full')) return;
+      const cached = readPageCache('reports-full');
+      if (cached) {
+        mergeState(cached);
+        loadedPages.add('reports-full');
+        return;
+      }
+      const data = await api('/api/page-data/reports-full');
+      mergeState(data);
+      loadedPages.add('reports-full');
+      writePageCache('reports-full', data);
+    }
+
     function renderReports() {
       const start = document.getElementById('reportStart')?.value || '';
       const end = document.getElementById('reportEnd')?.value || '';
-      const orderRows = reportRows('orders');
-      const financeRows = reportRows('finance');
-      const lowPartsRows = reportRows('parts');
-      const turnoverRows = reportRows('turnover');
-      const technicianRows = reportRows('technician_profit');
-      const warrantyRows = reportRows('warranty_returns');
-      const topServiceRows = reportRows('top_services');
-      const topPartRows = reportRows('top_parts');
-      const income = financeRows.filter(row => row.Tipo === 'Entrada').reduce((sum, row) => sum + Number(row.Valor || 0), 0);
-      const expense = financeRows.filter(row => row.Tipo === 'Saida').reduce((sum, row) => sum + Number(row.Valor || 0), 0);
-      const statusCounts = orderRows.reduce((acc, row) => (acc[row.Status] = (acc[row.Status] || 0) + 1, acc), {});
+      const needsFullData = Boolean((start || end) && !loadedPages.has('reports-full'));
+      if (needsFullData) {
+        loadFullReportsData().then(renderReports).catch(() => {});
+      }
+      const summary = state.report_summary || {};
+      const financeRows = loadedPages.has('reports-full') ? reportRows('finance') : [];
+      const turnoverRows = loadedPages.has('reports-full') ? reportRows('turnover') : (summary.turnover || []);
+      const technicianRows = loadedPages.has('reports-full') ? reportRows('technician_profit') : (summary.technicians || []);
+      const warrantyRows = loadedPages.has('reports-full') ? reportRows('warranty_returns') : (summary.warranty_returns || []);
+      const topServiceRows = loadedPages.has('reports-full') ? reportRows('top_services') : (summary.top_services || []);
+      const topPartRows = loadedPages.has('reports-full') ? reportRows('top_parts') : (summary.top_parts || []);
+      const income = loadedPages.has('reports-full')
+        ? financeRows.filter(row => row.Tipo === 'Entrada').reduce((sum, row) => sum + Number(row.Valor || 0), 0)
+        : Number(summary.finance?.income || 0);
+      const expense = loadedPages.has('reports-full')
+        ? financeRows.filter(row => row.Tipo === 'Saida').reduce((sum, row) => sum + Number(row.Valor || 0), 0)
+        : Number(summary.finance?.expense || 0);
+      const statusCounts = loadedPages.has('reports-full')
+        ? reportRows('orders').reduce((acc, row) => (acc[row.Status] = (acc[row.Status] || 0) + 1, acc), {})
+        : Object.fromEntries((summary.statuses || []).map(item => [item.Status, item.Quantidade]));
       const reportTypes = ['clients','orders','finance','dre','technician_profit','warranty_returns','top_services','top_parts','parts','turnover','manufacturers','services'];
       document.getElementById('content').innerHTML = `<div class="grid">
-        <div class="panel"><div class="panel-head"><h2>Relatorios e exportacao</h2><span class="muted">${start || end ? `Periodo: ${start || 'inicio'} ate ${end || 'hoje'}` : 'Sem filtro de data'}</span></div><div class="panel-body">
+        <div class="panel"><div class="panel-head"><h2>Relatorios e exportacao</h2><span class="muted">${needsFullData ? 'Carregando periodo...' : (start || end ? `Periodo: ${start || 'inicio'} ate ${end || 'hoje'}` : 'Sem filtro de data')}</span></div><div class="panel-body">
           <div class="report-period">
             <label>Data inicial<input id="reportStart" type="date" value="${start}" onchange="renderReports()"></label>
             <label>Data final<input id="reportEnd" type="date" value="${end}" onchange="renderReports()"></label>
@@ -1897,7 +1925,8 @@
       </div>`;
     }
 
-    function exportReport(type, format = 'excel') {
+    async function exportReport(type, format = 'excel') {
+      await loadFullReportsData();
       const rows = reportRows(type);
       if (!rows.length) return alert('Nao ha dados para exportar.');
       if (format === 'pdf') return exportPdf(`relatorio-${type}`, rows, reportLabel(type));
