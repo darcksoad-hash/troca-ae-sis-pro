@@ -586,10 +586,11 @@ def reports_summary_payload():
                 90 AS Garantia_dias
                 FROM service_orders
                 JOIN clients ON clients.id=service_orders.client_id
-                WHERE LOWER(COALESCE(service_orders.follow_up,'') || ' ' || COALESCE(service_orders.warranty_term,'') || ' ' || COALESCE(service_orders.status,'')) LIKE '%garantia%'
-                OR LOWER(COALESCE(service_orders.follow_up,'') || ' ' || COALESCE(service_orders.warranty_term,'') || ' ' || COALESCE(service_orders.status,'')) LIKE '%retorno%'
+                WHERE LOWER(COALESCE(service_orders.follow_up,'') || ' ' || COALESCE(service_orders.warranty_term,'') || ' ' || COALESCE(service_orders.status,'')) LIKE ?
+                OR LOWER(COALESCE(service_orders.follow_up,'') || ' ' || COALESCE(service_orders.warranty_term,'') || ' ' || COALESCE(service_orders.status,'')) LIKE ?
                 ORDER BY service_orders.opened DESC
-                LIMIT 8"""
+                LIMIT 8""",
+                ("%garantia%", "%retorno%"),
             ).fetchall()
         ]
     for item in technicians:
