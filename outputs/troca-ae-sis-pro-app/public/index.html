@@ -208,6 +208,8 @@
     let selectedUserId = '';
     let focusMemory = null;
     let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
+    let activePage = 'dashboard';
+    let renderSequence = 0;
     const pageSize = 20;
     const pageState = {};
     const loadedPages = new Set();
@@ -215,6 +217,7 @@
     const filterTimers = {};
     let dashboardCache = { expiresAt: 0, data: null };
     const pageCacheSeconds = 8 * 60;
+    const pageNames = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -348,7 +351,6 @@
 
     document.querySelectorAll('aside button[data-page]').forEach(button => {
       button.onclick = () => {
-        document.querySelectorAll('aside button').forEach(item => item.classList.toggle('active', item === button));
         render(button.dataset.page);
       };
     });
@@ -499,6 +501,15 @@
       return page === 'users' ? 'settings' : page;
     }
 
+    function setActivePage(page) {
+      const targetPage = normalizePage(page);
+      activePage = targetPage;
+      document.getElementById('title').textContent = pageNames[targetPage] || 'Painel';
+      document.querySelectorAll('aside button[data-page]').forEach(button => {
+        button.classList.toggle('active', normalizePage(button.dataset.page) === targetPage);
+      });
+    }
+
     function mergeState(data) {
       state = { ...state, ...data };
       applyBranding();
@@ -591,26 +602,30 @@
     }
 
     async function render(page) {
-      await ensurePageData(page);
-      const names = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
-      document.getElementById('title').textContent = names[page] || 'Painel';
-      if (page === 'dashboard') renderDashboard();
-      if (page === 'clients') renderClients();
-      if (page === 'orders') renderOrders();
-      if (page === 'catalog') renderCatalog();
-      if (page === 'parts') renderParts();
-      if (page === 'services') renderServices();
-      if (page === 'pos') renderPOS();
-      if (page === 'finance') renderFinance();
-      if (page === 'reports') renderReports();
-      if (page === 'users') renderSettings();
-      if (page === 'settings') renderSettings();
+      const targetPage = normalizePage(page);
+      const sequence = ++renderSequence;
+      setActivePage(targetPage);
+      await ensurePageData(targetPage);
+      if (sequence !== renderSequence || activePage !== targetPage) return;
+      if (targetPage === 'dashboard') await renderDashboard();
+      if (sequence !== renderSequence || activePage !== targetPage) return;
+      if (targetPage === 'clients') renderClients();
+      if (targetPage === 'orders') renderOrders();
+      if (targetPage === 'catalog') renderCatalog();
+      if (targetPage === 'parts') renderParts();
+      if (targetPage === 'services') renderServices();
+      if (targetPage === 'pos') renderPOS();
+      if (targetPage === 'finance') renderFinance();
+      if (targetPage === 'reports') renderReports();
+      if (targetPage === 'settings') renderSettings();
     }
 
     async function renderDashboard() {
+      const pageAtStart = activePage;
       const dash = dashboardCache.expiresAt > Date.now() && dashboardCache.data
         ? dashboardCache.data
         : await api('/api/dashboard');
+      if (activePage !== pageAtStart) return;
       dashboardCache = { data: dash, expiresAt: Date.now() + 20000 };
       const openOrders = dash.overdue_orders || state.orders.filter(order => !['Finalizada','Cancelada'].includes(order.status));
       const statuses = dash.order_statuses || state.orders.reduce((acc, order) => (acc[order.status] = (acc[order.status] || 0) + 1, acc), {});
