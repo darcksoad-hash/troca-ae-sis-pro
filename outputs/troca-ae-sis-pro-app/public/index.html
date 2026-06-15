@@ -709,7 +709,7 @@
         event.preventDefault();
         const data = Object.fromEntries(new FormData(event.currentTarget).entries());
         await api(`/api/clients${id ? `/${id}` : ''}`, { method:'POST', body: JSON.stringify(data) });
-        invalidatePages('orders', 'pos');
+        invalidatePages('orders', 'pos', 'order-form');
         await refreshPageData('clients');
         renderClients();
       };
@@ -919,6 +919,7 @@
     async function openOrderForm(id = '') {
       if (!can('os','criar') && !id) return render('orders');
       await ensurePageData('orders');
+      await loadOrderFormData();
       if (id) await loadSelectedOrderDetail(id);
       await orderForm(id);
     }
@@ -1086,6 +1087,7 @@
     }
 
     async function sendOrderWhatsApp(id, type) {
+      await loadOrderFormData();
       await loadSelectedOrderDetail(id);
       const order = state.orders.find(item => item.id === id);
       const client = state.clients.find(item => item.id === order?.client_id) || {};
@@ -1103,6 +1105,7 @@
     }
 
     async function printOrder(id) {
+      await loadOrderFormData();
       await loadSelectedOrderDetail(id);
       const order = state.orders.find(item => item.id === id);
       if (!order) return;
@@ -1393,9 +1396,9 @@
           }
           await onSubmit(new FormData(event.currentTarget));
           invalidatePages('dashboard', 'reports');
-          if (backPage === 'catalog') invalidatePages('orders', 'parts');
+          if (backPage === 'catalog') invalidatePages('orders', 'parts', 'order-form');
           if (backPage === 'parts') invalidatePages('orders', 'pos', 'dashboard');
-          if (backPage === 'services') invalidatePages('orders', 'reports');
+          if (backPage === 'services') invalidatePages('orders', 'reports', 'order-form');
           if (backPage === 'users') invalidatePages('settings');
           await refreshPageData(backPage);
           await render(backPage);
@@ -1534,7 +1537,7 @@
       if (!confirm('Excluir este registro?')) return;
       try {
         const result = await api(`/api/${section}/${id}`, { method:'DELETE' });
-        invalidatePages('dashboard', 'reports', 'orders', 'parts', 'pos', 'finance');
+        invalidatePages('dashboard', 'reports', 'orders', 'parts', 'pos', 'finance', 'order-form');
         if (page === 'users' || page === 'settings') invalidatePages('settings');
         if (result.message) alert(result.message);
         await refreshPageData(page);
@@ -1869,6 +1872,20 @@
       mergeState(data);
       loadedPages.add('reports-full');
       writePageCache('reports-full', data);
+    }
+
+    async function loadOrderFormData() {
+      if (loadedPages.has('order-form')) return;
+      const cached = readPageCache('order-form');
+      if (cached) {
+        mergeState(cached);
+        loadedPages.add('order-form');
+        return;
+      }
+      const data = await api('/api/page-data/order-form');
+      mergeState(data);
+      loadedPages.add('order-form');
+      writePageCache('order-form', data);
     }
 
     function renderReports() {

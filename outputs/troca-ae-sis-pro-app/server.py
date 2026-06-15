@@ -534,19 +534,6 @@ def reports_summary_payload():
             COALESCE(SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END),0) AS empty
             FROM parts"""
         ).fetchone())
-        turnover = [
-            row_dict(item) for item in conn.execute(
-                """SELECT parts.sku AS SKU, parts.name AS Item, parts.usage_type AS Uso, parts.stock AS Estoque_atual,
-                COALESCE(SUM(CASE WHEN stock_movements.type='Entrada' THEN stock_movements.quantity ELSE 0 END),0) AS Entradas,
-                COALESCE(SUM(CASE WHEN stock_movements.type='Saida' THEN stock_movements.quantity ELSE 0 END),0) AS Saidas,
-                parts.cost AS Custo_medio, parts.price AS Preco
-                FROM parts
-                LEFT JOIN stock_movements ON stock_movements.part_id=parts.id
-                GROUP BY parts.id, parts.sku, parts.name, parts.usage_type, parts.stock, parts.cost, parts.price
-                ORDER BY Saidas DESC, parts.name
-                LIMIT 8"""
-            ).fetchall()
-        ]
         services = [
             row_dict(item) for item in conn.execute(
                 """SELECT services.name AS Servico, COUNT(order_services.id) AS Quantidade,
@@ -575,9 +562,7 @@ def reports_summary_payload():
         technicians = [
             row_dict(item) for item in conn.execute(
                 """SELECT COALESCE(technician_name,'Sem tecnico') AS Tecnico, COUNT(*) AS OS,
-                COALESCE(SUM((SELECT COALESCE(SUM(unit_price*quantity),0) FROM order_parts WHERE order_id=service_orders.id) +
-                (SELECT COALESCE(SUM(labor),0) FROM order_services WHERE order_id=service_orders.id) - discount),0) AS Receita,
-                COALESCE(SUM((SELECT COALESCE(SUM(unit_cost*quantity),0) FROM order_parts WHERE order_id=service_orders.id)),0) AS Custo_pecas
+                COALESCE(SUM(paid),0) AS Receita, 0 AS Custo_pecas
                 FROM service_orders
                 GROUP BY technician_name
                 ORDER BY Receita DESC
@@ -602,10 +587,7 @@ def reports_summary_payload():
         item["Mao_de_obra"] = max(0, float(item.get("Receita") or 0) - float(item.get("Custo_pecas") or 0))
         item["Lucro"] = float(item.get("Receita") or 0) - float(item.get("Custo_pecas") or 0)
         item["Margem"] = f"{((item['Lucro'] / float(item.get('Receita') or 1)) * 100):.1f}%" if float(item.get("Receita") or 0) else "0%"
-    for item in turnover:
-        item["Giro"] = "Com giro" if float(item.get("Saidas") or 0) > 0 else "Parado"
-        item["Sugestao_compra"] = max(0, int(float(item.get("Saidas") or 0)) - int(float(item.get("Estoque_atual") or 0)))
-    return {"finance": finance, "statuses": statuses, "stock": stock, "turnover": turnover, "technicians": technicians, "warranty_returns": warranty, "top_services": services, "top_parts": parts}
+    return {"finance": finance, "statuses": statuses, "stock": stock, "turnover": [], "technicians": technicians, "warranty_returns": warranty, "top_services": services, "top_parts": parts}
 
 
 def insert_status_history(conn, order_id, user_id, old_status, new_status, note):
@@ -1146,12 +1128,20 @@ class App(BaseHTTPRequestHandler):
         if page == "orders":
             order_allowed = self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
             return payload | {
+                "clients": [],
+                "manufacturers": [],
+                "models": [],
+                "parts": [],
+                "services": [],
+                "orders": order_payload(include_details=False) if self.has_permission(user, "os", "ver") else [],
+            }
+        if page == "order-form":
+            order_allowed = self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar")
+            return payload | {
                 "clients": rows("SELECT * FROM clients ORDER BY name") if order_allowed else [],
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if order_allowed else [],
                 "models": rows("SELECT * FROM product_models ORDER BY name") if order_allowed else [],
-                "parts": [],
                 "services": rows("SELECT * FROM services ORDER BY name") if order_allowed else [],
-                "orders": order_payload(include_details=False) if self.has_permission(user, "os", "ver") else [],
             }
         if page == "finance":
             allowed = self.has_permission(user, "financeiro", "ver")
