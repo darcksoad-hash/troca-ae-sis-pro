@@ -590,6 +590,42 @@ def reports_summary_payload():
     return {"finance": finance, "statuses": statuses, "stock": stock, "turnover": [], "technicians": technicians, "warranty_returns": warranty, "top_services": services, "top_parts": parts}
 
 
+def parts_list_payload(query="", manufacturer_id="", stock_filter="", page=1, page_size=20):
+    page = max(1, int(page or 1))
+    page_size = min(5000, max(1, int(page_size or 20)))
+    where = []
+    params = []
+    if query:
+        like = f"%{query.lower()}%"
+        where.append("""LOWER(
+            COALESCE(parts.name,'') || ' ' ||
+            COALESCE(parts.sku,'') || ' ' ||
+            COALESCE(parts.category,'') || ' ' ||
+            COALESCE(parts.compatible_models,'') || ' ' ||
+            COALESCE(manufacturers.name,'')
+        ) LIKE ?""")
+        params.append(like)
+    if manufacturer_id:
+        where.append("parts.manufacturer_id=?")
+        params.append(manufacturer_id)
+    if stock_filter == "low":
+        where.append("parts.stock <= parts.min_stock")
+    if stock_filter == "zero":
+        where.append("parts.stock = 0")
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    from_sql = "FROM parts LEFT JOIN manufacturers ON manufacturers.id=parts.manufacturer_id"
+    select_sql = f"""SELECT parts.id,parts.sku,parts.name,parts.category,parts.manufacturer_id,parts.compatible_models,
+        parts.cost,parts.price,parts.stock,parts.min_stock,parts.supplier_id,parts.warranty_days,parts.usage_type
+        {from_sql} {where_sql}
+        ORDER BY parts.name
+        LIMIT ? OFFSET ?"""
+    count_sql = f"SELECT COUNT(*) AS total {from_sql} {where_sql}"
+    with db() as conn:
+        total = int(conn.execute(count_sql, tuple(params)).fetchone()["total"] or 0)
+        items = [row_dict(item) for item in conn.execute(select_sql, tuple(params + [page_size, (page - 1) * page_size])).fetchall()]
+    return {"parts": items, "parts_meta": {"total": total, "page": page, "page_size": page_size, "query": query, "manufacturer_id": manufacturer_id, "stock_filter": stock_filter}}
+
+
 def insert_status_history(conn, order_id, user_id, old_status, new_status, note):
     if old_status == new_status and note != "OS criada":
         return
@@ -1114,12 +1150,14 @@ class App(BaseHTTPRequestHandler):
         if page == "parts":
             stock_allowed = self.has_permission(user, "estoque", "ver")
             catalog_allowed = stock_allowed or self.has_permission(user, "fabricantes", "ver")
+            parts_payload = parts_list_payload() if stock_allowed else {"parts": [], "parts_meta": {"total": 0, "page": 1, "page_size": 20}}
             return payload | {
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
                 "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],
-                "parts": rows(part_inventory_select) if stock_allowed else [],
+                "parts": parts_payload["parts"],
+                "parts_meta": parts_payload["parts_meta"],
                 "suppliers": rows("SELECT * FROM suppliers ORDER BY name") if stock_allowed else [],
-                "stock_movements": rows("SELECT * FROM stock_movements ORDER BY created_at DESC LIMIT 300") if stock_allowed else [],
+                "stock_movements": rows("SELECT stock_movements.*, parts.name AS part_name FROM stock_movements LEFT JOIN parts ON parts.id=stock_movements.part_id ORDER BY stock_movements.created_at DESC LIMIT 300") if stock_allowed else [],
                 "purchases": rows("SELECT * FROM purchase_entries ORDER BY date DESC, created_at DESC LIMIT 100") if stock_allowed else [],
                 "purchase_items": [],
             }
@@ -1343,6 +1381,18 @@ class App(BaseHTTPRequestHandler):
         elif path.startswith("/api/page-data/"):
             page = path.split("/")[-1]
             self.send_json(self.page_payload(user, page))
+        elif path == "/api/parts-list":
+            if not self.has_permission(user, "estoque", "ver"):
+                self.send_json({"error": "Sem permissao para ver pecas."}, 403)
+                return
+            query = parse_qs(urlparse(self.path).query)
+            self.send_json(parts_list_payload(
+                query=query.get("q", [""])[0],
+                manufacturer_id=query.get("manufacturer_id", [""])[0],
+                stock_filter=query.get("stock", [""])[0],
+                page=query.get("page", ["1"])[0],
+                page_size=query.get("page_size", ["20"])[0],
+            ))
         elif path == "/api/order-parts":
             if not (self.has_permission(user, "os", "ver") or self.has_permission(user, "os", "criar") or self.has_permission(user, "estoque", "ver")):
                 self.send_json({"error": "Sem permissao para ver pecas."}, 403)

@@ -203,13 +203,14 @@
 
   <script>
     let token = localStorage.getItem('troca-ae-token') || '';
-    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[], report_summary:{} };
+    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], parts_meta:{ total:0, page:1, page_size:20 }, services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[], report_summary:{} };
     let selectedOrderId = '';
     let selectedUserId = '';
     let focusMemory = null;
     let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
     let activePage = 'dashboard';
     let renderSequence = 0;
+    let partsRequestSequence = 0;
     const pageSize = 20;
     const pageState = {};
     const loadedPages = new Set();
@@ -594,7 +595,7 @@
         setTimeout(() => refreshPageData(page).catch(() => {}), delay);
         delay += 900;
       });
-      ['parts','pos','reports'].forEach(page => {
+      ['reports'].forEach(page => {
         if (loadedPages.has(page) || readPageCache(page)) return;
         setTimeout(() => refreshPageData(page).catch(() => {}), delay + 1500);
         delay += 1800;
@@ -1244,18 +1245,43 @@
       return '<span class="pill green">Recebido</span>';
     }
 
-    function renderParts() {
+    async function loadPartsList(query, manufacturer, stockFilter, sequence) {
+      const page = getPage('parts', state.parts_meta?.total || 0);
+      const params = new URLSearchParams({
+        q: query || '',
+        manufacturer_id: manufacturer || '',
+        stock: stockFilter || '',
+        page: String(page),
+        page_size: String(pageSize)
+      });
+      const data = await api(`/api/parts-list?${params.toString()}`);
+      if (sequence !== partsRequestSequence) return false;
+      mergeState(data);
+      return true;
+    }
+
+    async function loadPartsForSelection() {
+      if (state.parts_meta?.selection_loaded) return;
+      const data = await api(`/api/parts-list?page=1&page_size=5000`);
+      const current = new Map(state.parts.map(part => [part.id, part]));
+      data.parts.forEach(part => current.set(part.id, part));
+      state.parts = Array.from(current.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      state.parts_meta = { ...(state.parts_meta || {}), selection_loaded: true };
+    }
+
+    async function renderParts() {
       const query = document.getElementById('partsSearch')?.value || '';
       const manufacturer = document.getElementById('partsManufacturer')?.value || '';
       const stockFilter = document.getElementById('partsStockFilter')?.value || '';
       const supplierQuery = document.getElementById('supplierSearch')?.value || '';
       const movementQuery = document.getElementById('movementSearch')?.value || '';
       const movementType = document.getElementById('movementTypeFilter')?.value || '';
-      const list = state.parts.filter(part => {
-        const stockOk = !stockFilter || (stockFilter === 'low' && Number(part.stock) <= Number(part.min_stock)) || (stockFilter === 'zero' && Number(part.stock) === 0);
-        return textMatch(part, query) && (!manufacturer || part.manufacturer_id === manufacturer) && stockOk;
-      });
-      const rows = paginate('parts', list);
+      const currentPage = activePage;
+      const sequence = ++partsRequestSequence;
+      const loaded = await loadPartsList(query, manufacturer, stockFilter, sequence);
+      if (!loaded || activePage !== currentPage) return;
+      const rows = state.parts;
+      const totalParts = Number(state.parts_meta?.total || rows.length);
       const supplierRows = paginate('suppliers', state.suppliers.filter(supplier => textMatch(supplier, supplierQuery)));
       const movementRows = paginate('movements', (state.stock_movements || []).filter(mov => textMatch(mov, movementQuery) && (!movementType || mov.type === movementType)));
       document.getElementById('content').innerHTML = `<div class="grid two">
@@ -1267,7 +1293,7 @@
           </div>
           <table><thead><tr><th>SKU</th><th>Peca</th><th>Uso</th><th>Estoque</th><th>Status</th><th>Custo medio</th><th>Preco</th><th>Reposicao</th><th>Acoes</th></tr></thead><tbody>
             ${rows.map(p => `<tr><td>${p.sku}</td><td><strong>${p.name}</strong><br><span class="muted">${manufacturerName(p.manufacturer_id)} | ${p.category || ''}</span></td><td>${p.usage_type || 'Ambos'}</td><td>${p.stock}/${p.min_stock}</td><td>${stockBadge(p)}</td><td>${money(p.cost)}</td><td><span class="money">${money(p.price)}</span></td><td>${reorderText(p)}</td><td><div class="actions">${can('estoque','editar') ? `<button class="icon-btn" onclick="partForm('${p.id}')" title="Editar">E</button>` : ''} ${can('estoque','excluir') ? `<button class="icon-btn" onclick="removeRecord('parts','${p.id}','parts')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="9">Nenhuma peca encontrada.</td></tr>'}
-          </tbody></table>${pager('parts', list.length, 'renderParts')}
+          </tbody></table>${pager('parts', totalParts, 'renderParts')}
         </div></div>
         <div class="panel"><div class="panel-head"><h2>Fornecedores</h2></div><div class="panel-body">
           <div class="filters"><input id="supplierSearch" placeholder="Pesquisar fornecedor, documento ou contato" value="${supplierQuery}" oninput="scheduleFilter('suppliers','renderParts')"><span></span><span></span></div>
@@ -1278,7 +1304,7 @@
         <div class="panel" style="grid-column:1/-1"><div class="panel-head"><h2>Historico de movimentacao</h2>${can('estoque','movimentar') ? '<button class="btn primary" onclick="purchaseForm()">+ Entrada de compra</button>' : ''}</div><div class="panel-body">
           <div class="filters"><input id="movementSearch" placeholder="Pesquisar peca, motivo ou fornecedor" value="${movementQuery}" oninput="scheduleFilter('movements','renderParts')"><select id="movementTypeFilter" onchange="resetPage('movements'); renderParts()"><option value="">Todos tipos</option>${['Entrada','Saida'].map(type => `<option ${movementType === type ? 'selected' : ''}>${type}</option>`).join('')}</select><span></span></div>
           <table><thead><tr><th>Data</th><th>Tipo</th><th>Peca</th><th>Quantidade</th><th>Motivo</th></tr></thead><tbody>
-            ${movementRows.map(m => `<tr><td>${m.created_at || ''}</td><td>${badge(m.type)}</td><td>${partName(m.part_id)}</td><td>${m.quantity || ''}</td><td>${m.reason || ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma movimentacao registrada.</td></tr>'}
+            ${movementRows.map(m => `<tr><td>${m.created_at || ''}</td><td>${badge(m.type)}</td><td>${m.part_name || partName(m.part_id)}</td><td>${m.quantity || ''}</td><td>${m.reason || ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma movimentacao registrada.</td></tr>'}
           </tbody></table>${pager('movements', (state.stock_movements || []).filter(mov => textMatch(mov, movementQuery) && (!movementType || mov.type === movementType)).length, 'renderParts')}
           <div style="height:16px"></div>
           <h2>Compras registradas</h2>
@@ -1290,7 +1316,8 @@
       restoreFocus();
     }
 
-    function purchaseForm() {
+    async function purchaseForm() {
+      await loadPartsForSelection();
       const todayValue = new Date().toISOString().slice(0,10);
       const itemRows = Array.from({ length: 5 }, (_, index) => `
         <div class="form-grid wide" style="grid-template-columns:2fr 1fr 1fr 1fr;margin-bottom:8px">
