@@ -1203,7 +1203,6 @@ class App(BaseHTTPRequestHandler):
             parts_payload = parts_list_payload() if stock_allowed else {"parts": [], "parts_meta": {"total": 0, "page": 1, "page_size": 20}}
             return payload | {
                 "manufacturers": rows("SELECT * FROM manufacturers ORDER BY name") if catalog_allowed else [],
-                "models": rows("SELECT * FROM product_models ORDER BY name") if catalog_allowed else [],
                 "parts": parts_payload["parts"],
                 "parts_meta": parts_payload["parts_meta"],
                 "suppliers": rows("SELECT * FROM suppliers ORDER BY name") if stock_allowed else [],

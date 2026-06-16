@@ -217,6 +217,7 @@
     const orderPartsCache = {};
     const filterTimers = {};
     let dashboardCache = { expiresAt: 0, data: null };
+    const pageCacheVersion = '2026-06-16-neon-migrated-v2';
     const pageCacheSeconds = 8 * 60;
     const pageNames = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
 
@@ -527,7 +528,7 @@
     }
 
     function pageCacheKey(page) {
-      return `troca-ae-page-${state.me?.id || 'anon'}-${normalizePage(page)}`;
+      return `troca-ae-page-${pageCacheVersion}-${state.me?.id || 'anon'}-${normalizePage(page)}`;
     }
 
     function readPageCache(page) {
@@ -563,6 +564,9 @@
     async function refreshPageData(page) {
       const targetPage = normalizePage(page);
       const data = await api(`/api/page-data/${targetPage}`);
+      if (targetPage === 'parts' && data.parts_meta) {
+        data.parts_meta.query_key = partsListKey('', '', '', Number(data.parts_meta.page || 1));
+      }
       mergeState(data);
       loadedPages.add(targetPage);
       writePageCache(targetPage, data);
@@ -1267,8 +1271,14 @@
       return '<span class="pill green">Recebido</span>';
     }
 
+    function partsListKey(query, manufacturer, stockFilter, page) {
+      return [query || '', manufacturer || '', stockFilter || '', Number(page || 1), pageSize].join('|');
+    }
+
     async function loadPartsList(query, manufacturer, stockFilter, sequence) {
       const page = getPage('parts', state.parts_meta?.total || 0);
+      const requestKey = partsListKey(query, manufacturer, stockFilter, page);
+      if (state.parts_meta?.query_key === requestKey && Array.isArray(state.parts) && state.parts.length) return true;
       const params = new URLSearchParams({
         q: query || '',
         manufacturer_id: manufacturer || '',
@@ -1278,6 +1288,7 @@
       });
       const data = await api(`/api/parts-list?${params.toString()}`);
       if (sequence !== partsRequestSequence) return false;
+      data.parts_meta = { ...(data.parts_meta || {}), query_key: requestKey };
       mergeState(data);
       return true;
     }
@@ -1482,7 +1493,10 @@
       `, form => saveRecord('models', id, Object.fromEntries(form.entries())), 'catalog');
     }
 
-    function partForm(id = '') {
+    async function partForm(id = '') {
+      if (!state.models.length && can('fabricantes', 'ver')) {
+        await ensurePageData('catalog');
+      }
       const item = state.parts.find(row => row.id === id) || {};
       const selected = safeJson(item.compatible_models, []);
       formPanel(id ? 'Editar peca' : 'Nova peca', `
