@@ -42,6 +42,41 @@ PG_LOCK = threading.RLock()
 DASHBOARD_CACHE = {"expires_at": 0, "data": None}
 DASHBOARD_CACHE_SECONDS = 20
 
+
+def session_secret():
+    return os.environ.get("SESSION_SECRET") or os.environ.get("SECRET_KEY") or DATABASE_URL or "troca-ae-local-session-secret"
+
+
+def b64url_encode(data):
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def b64url_decode(value):
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def create_session_token(user_id, expires_at):
+    payload = json.dumps({"user_id": user_id, "exp": int(expires_at)}, separators=(",", ":")).encode("utf-8")
+    payload_b64 = b64url_encode(payload)
+    signature = hmac.new(session_secret().encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest()
+    return f"v1.{payload_b64}.{b64url_encode(signature)}"
+
+
+def verify_session_token(token):
+    try:
+        if not token.startswith("v1."):
+            return None
+        _, payload_b64, signature_b64 = token.split(".", 2)
+        expected = hmac.new(session_secret().encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest()
+        if not hmac.compare_digest(b64url_decode(signature_b64), expected):
+            return None
+        data = json.loads(b64url_decode(payload_b64).decode("utf-8"))
+        if int(data.get("exp") or 0) < int(time.time()):
+            return None
+        return data
+    except Exception:
+        return None
+
 try:
     import psycopg
     from psycopg.rows import dict_row
@@ -302,7 +337,7 @@ def postgres_tool(name):
 
 
 def create_backup(kind="manual"):
-    BACKUPS.mkdir(exist_ok=True)
+    BACKUPS.mkdir(parents=True, exist_ok=True)
     name = backup_name(kind)
     path = BACKUPS / name
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -413,7 +448,7 @@ def restore_backup_file(name):
 
 
 def backup_rows():
-    BACKUPS.mkdir(exist_ok=True)
+    BACKUPS.mkdir(parents=True, exist_ok=True)
     return [
         {"name": file.name, "size": file.stat().st_size, "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file.stat().st_mtime))}
         for file in sorted(BACKUPS.glob("*.zip"), key=lambda item: item.stat().st_mtime, reverse=True)
@@ -421,7 +456,7 @@ def backup_rows():
 
 
 def ensure_daily_backup():
-    BACKUPS.mkdir(exist_ok=True)
+    BACKUPS.mkdir(parents=True, exist_ok=True)
     prefix = f"troca-ae-auto-{today()}"
     has_database = DB_ENGINE == "postgres" or DB_PATH.exists()
     if not any(file.name.startswith(prefix) for file in BACKUPS.glob("*.zip")) and has_database:
@@ -646,8 +681,8 @@ def insert_status_history(conn, order_id, user_id, old_status, new_status, note)
 
 
 def seed():
-    DATA.mkdir(exist_ok=True)
-    UPLOADS.mkdir(exist_ok=True)
+    DATA.mkdir(parents=True, exist_ok=True)
+    UPLOADS.mkdir(parents=True, exist_ok=True)
     with db() as conn:
         schema_path = POSTGRES_SCHEMA_PATH if DB_ENGINE == "postgres" else SCHEMA_PATH
         conn.executescript(schema_path.read_text(encoding="utf-8"))
@@ -1020,6 +1055,11 @@ class App(BaseHTTPRequestHandler):
     def token_user(self):
         auth = self.headers.get("Authorization", "")
         token = auth.replace("Bearer ", "", 1) if auth.startswith("Bearer ") else ""
+        signed_session = verify_session_token(token)
+        if signed_session:
+            user = row("SELECT users.*, roles.name AS role_name, roles.level, roles.permissions FROM users JOIN roles ON roles.id = users.role_id WHERE users.id=? AND users.status='Ativo'", (signed_session.get("user_id"),))
+            if user:
+                return user
         session = SESSIONS.get(token)
         if isinstance(session, str):
             session = {"user_id": session, "expires_at": time.time() + SESSION_SECONDS}
@@ -1303,13 +1343,14 @@ class App(BaseHTTPRequestHandler):
             if not int(user.get("email_verified") if user.get("email_verified") is not None else 1):
                 self.send_json({"error": "Confirme seu e-mail antes de entrar. Use a opcao de reenviar confirmacao na tela de login."}, 403)
                 return
-            token = secrets.token_urlsafe(32)
             expires_at = time.time() + SESSION_SECONDS
+            token = create_session_token(user["id"], expires_at)
             login_at = now()
             user["last_login"] = login_at
             user["failed_attempts"] = 0
             user["locked_until"] = None
-            SESSIONS[token] = {"user_id": user["id"], "user": user, "expires_at": expires_at}
+            if os.environ.get("APP_ENV") != "production":
+                SESSIONS[token] = {"user_id": user["id"], "user": user, "expires_at": expires_at}
             with db() as conn:
                 conn.execute("UPDATE users SET failed_attempts=0, locked_until=NULL, last_login=? WHERE id=?", (login_at, user["id"]))
                 conn.execute("INSERT INTO audit_logs(id,user_id,action,detail) VALUES(?,?,?,?)", (uid("aud"), user["id"], "Login realizado", user["email"]))
