@@ -6,6 +6,11 @@
       "use": "@vercel/python"
     }
   ],
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "outputs/troca-ae-sis-pro-app/**"
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",
