@@ -1,0 +1,47 @@
+{
+  "name": "Troca Ae SIS PRO",
+  "short_name": "Troca Ae",
+  "description": "ERP para assistencia tecnica de smartphones.",
+  "id": "/",
+  "start_url": "/?app=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f7f8fb",
+  "theme_color": "#f9732f",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/troca-ae-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Abrir O.S",
+      "short_name": "Nova O.S",
+      "description": "Abrir uma nova ordem de servico.",
+      "url": "/?app=pwa&page=orders",
+      "icons": [{ "src": "/troca-ae-logo.jpg", "sizes": "512x512", "type": "image/jpeg" }]
+    },
+    {
+      "name": "Financeiro",
+      "short_name": "Financeiro",
+      "description": "Acessar caixa e lancamentos financeiros.",
+      "url": "/?app=pwa&page=finance",
+      "icons": [{ "src": "/troca-ae-logo.jpg", "sizes": "512x512", "type": "image/jpeg" }]
+    },
+    {
+      "name": "Relatorios",
+      "short_name": "Relatorios",
+      "description": "Acessar relatorios e exportacoes.",
+      "url": "/?app=pwa&page=reports",
+      "icons": [{ "src": "/troca-ae-logo.jpg", "sizes": "512x512", "type": "image/jpeg" }]
+    }
+  ]
+}

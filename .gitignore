@@ -9,3 +9,5 @@ outputs/troca-ae-sis-pro-app/server.log
 outputs/troca-ae-sis-pro-app/server.err
 
 work/
+
+.vercel
