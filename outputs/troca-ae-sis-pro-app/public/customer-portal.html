@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Portal do Cliente - Troca Ae SIS PRO</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{--brand:#ff6b2c;--ink:#20242a;--muted:#667085;--line:#dfe4ea;--soft:#f6f8fb;--ok:#16a36a;--warn:#e69a00;--bad:#d92d20}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:linear-gradient(90deg,#fff7f3,#f5f7fb 34%,#f8fafc);color:var(--ink);font-size:16px}
+    .wrap{max-width:1180px;margin:0 auto;padding:26px}
+    .hero,.panel{background:white;border:1px solid var(--line);border-radius:10px;box-shadow:0 22px 55px rgba(18,38,63,.08)}
+    .hero{display:flex;gap:18px;align-items:center;justify-content:space-between;padding:22px;margin-bottom:20px}
+    .brand{display:flex;gap:14px;align-items:center}
+    .brand img{width:58px;height:58px;object-fit:contain;border:1px solid #ffd8c6;border-radius:10px;padding:5px;background:white}
+    h1,h2,h3,p{margin:0}
+    h1{font-size:30px;line-height:1.1}
+    h2{font-size:20px}
+    h3{font-size:17px}
+    .muted{color:var(--muted)}
+    .grid{display:grid;gap:16px}
+    .kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px}
+    .two{grid-template-columns:1.25fr .75fr}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
+    .panel-body{padding:20px}
+    .kpi{border-top:3px solid var(--brand);padding:20px}
+    .kpi span{display:block;color:var(--muted);font-size:14px;margin-bottom:10px}
+    .kpi strong{font-size:28px}
+    .pill{display:inline-flex;align-items:center;border-radius:999px;padding:7px 12px;font-weight:800;font-size:13px;background:#e6f1fb;color:#185b8b}
+    .pill.ok{background:#e8f7ef;color:var(--ok)}
+    .pill.warn{background:#fff4d9;color:#986600}
+    .pill.bad{background:#ffebe8;color:var(--bad)}
+    .detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .box{border:1px solid var(--line);border-radius:8px;background:#fbfcfe;padding:14px;min-height:76px}
+    .box span{display:block;text-transform:uppercase;color:var(--muted);font-weight:800;font-size:12px;margin-bottom:6px}
+    .money{font-weight:900}
+    button,.btn{border:1px solid var(--line);background:white;border-radius:8px;padding:12px 16px;font-size:16px;cursor:pointer;color:var(--ink)}
+    button.primary,.btn.primary{background:var(--brand);border-color:var(--brand);color:white;box-shadow:0 14px 30px rgba(255,107,44,.24)}
+    button.danger{background:var(--bad);border-color:var(--bad);color:white}
+    .actions{display:flex;flex-wrap:wrap;gap:10px}
+    table{width:100%;border-collapse:collapse}
+    th,td{text-align:left;border-bottom:1px solid var(--line);padding:12px;vertical-align:top}
+    th{font-size:13px;text-transform:uppercase;color:var(--muted);background:#fafbfc}
+    .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+    .photos a{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;text-decoration:none;color:var(--ink)}
+    .photos img{width:100%;height:120px;object-fit:cover;display:block}
+    .photos small{display:block;padding:8px;color:var(--muted)}
+    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:16px;background:white}
+    label{display:block;font-weight:800;color:#526071;text-transform:uppercase;font-size:12px;margin-bottom:10px}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .empty{padding:18px;border:1px dashed var(--line);border-radius:8px;color:var(--muted)}
+    .map{min-height:320px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f8fafc}
+    @media(max-width:840px){.wrap{padding:14px}.hero{align-items:flex-start;flex-direction:column}.kpis,.two,.detail,.form-grid{grid-template-columns:1fr}h1{font-size:25px}.actions button{width:100%}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="brand">
+        <img id="companyLogo" src="/troca-ae-logo.jpg" alt="Troca Ae">
+        <div>
+          <h1>Portal do Cliente</h1>
+          <p class="muted" id="companyName">Troca Ae SIS PRO</p>
+        </div>
+      </div>
+      <span class="pill" id="statusPill">Carregando</span>
+    </section>
+    <div id="app" class="empty">Carregando dados da sua Ordem de Servico...</div>
+  </main>
+
+  <script>
+    const token = decodeURIComponent(location.pathname.split('/portal/')[1] || '');
+    let payload = null;
+    let portalMap = null;
+    const money = value => Number(value || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const badgeClass = status => /aprov|final|entreg|receb/i.test(status) ? 'ok' : /cancel|recus|reprov/i.test(status) ? 'bad' : /aguard|pend/i.test(status) ? 'warn' : '';
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+      });
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!response.ok) throw new Error(data.error || 'Nao foi possivel concluir.');
+      return data;
+    }
+
+    async function load() {
+      try {
+        payload = await request(`/api/customer-portal/${encodeURIComponent(token)}`);
+        render();
+      } catch (error) {
+        document.getElementById('statusPill').textContent = 'Indisponivel';
+        document.getElementById('statusPill').className = 'pill bad';
+        document.getElementById('app').innerHTML = `<h2>Link invalido ou expirado</h2><p class="muted">${esc(error.message)}</p>`;
+      }
+    }
+
+    function render() {
+      const { company, order, permissions } = payload;
+      document.getElementById('companyName').textContent = company.name || 'Troca Ae SIS PRO';
+      document.getElementById('companyLogo').src = company.logo_path || '/troca-ae-logo.jpg';
+      document.getElementById('statusPill').textContent = order.status || 'Sem status';
+      document.getElementById('statusPill').className = `pill ${badgeClass(order.status)}`;
+      const freight = Number(order.freight_value || 0);
+      const parts = order.parts || [];
+      const services = order.services || [];
+      const photos = order.photos || [];
+      const history = order.history || [];
+      const deliveries = order.collections || [];
+      document.getElementById('app').innerHTML = `
+        <div class="grid kpis">
+          <div class="panel kpi"><span>OS</span><strong>#${esc(order.number)}</strong></div>
+          <div class="panel kpi"><span>Status</span><strong>${esc(order.status)}</strong></div>
+          <div class="panel kpi"><span>Total</span><strong>${money(order.calc?.total)}</strong></div>
+          <div class="panel kpi"><span>Frete</span><strong>${money(freight)}</strong></div>
+        </div>
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head"><h2>Ordem de Servico</h2><span class="pill ${badgeClass(order.approval_status)}">${esc(order.approval_status || 'Pendente')}</span></div>
+            <div class="panel-body grid">
+              <div class="detail">
+                <div class="box"><span>Cliente</span>${esc(order.client_name)}</div>
+                <div class="box"><span>Aparelho</span>${esc(order.device?.brand)} ${esc(order.device?.model)}<br><small class="muted">IMEI ${esc(order.device?.imei || 'nao informado')}</small></div>
+                <div class="box"><span>Defeito relatado</span>${esc(order.defect || 'Nao informado')}</div>
+                <div class="box"><span>Diagnostico</span>${esc(order.diagnosis || 'Aguardando diagnostico')}</div>
+                <div class="box"><span>Pagamento</span>Pago ${money(order.calc?.paid)}<br><small class="muted">Saldo ${money(order.calc?.balance)}</small></div>
+                <div class="box"><span>Prazo</span>${esc(order.opened || '')} ate ${esc(order.due || '')}</div>
+              </div>
+              <div class="actions">
+                ${permissions.aprovar_orcamento ? '<button class="primary" onclick="approveBudget()">Aprovar orcamento</button>' : ''}
+                ${permissions.recusar_orcamento ? '<button class="danger" onclick="rejectBudget()">Recusar orcamento</button>' : ''}
+                ${permissions.realizar_pagamento ? '<button onclick="paymentForm()">Realizar pagamento</button>' : ''}
+                ${permissions.solicitar_coleta ? "<button onclick=\"deliveryForm('collect')\">Solicitar coleta</button>" : ''}
+                ${permissions.solicitar_devolucao ? "<button onclick=\"deliveryForm('return')\">Solicitar devolucao</button>" : ''}
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>Resumo financeiro</h2></div>
+            <div class="panel-body">
+              <div class="box"><span>Orcamento</span><div class="money">${money(order.calc?.total)}</div></div>
+              <div style="height:10px"></div>
+              <div class="box"><span>Pago</span><div class="money">${money(order.calc?.paid)}</div></div>
+              <div style="height:10px"></div>
+              <div class="box"><span>Saldo</span><div class="money">${money(order.calc?.balance)}</div></div>
+            </div>
+          </section>
+        </div>
+        <div style="height:16px"></div>
+        <section class="panel">
+          <div class="panel-head"><h2>Itens do orcamento</h2></div>
+          <div class="panel-body">
+            <table><thead><tr><th>Tipo</th><th>Descricao</th><th>Garantia</th><th>Valor</th></tr></thead><tbody>
+              ${parts.map(item => `<tr><td>Peca</td><td><strong>${esc(item.name)}</strong><br><span class="muted">${esc(item.sku || '')}</span></td><td>${esc(item.warranty_days || 90)} dias</td><td>${money(item.unit_price)}</td></tr>`).join('')}
+              ${services.map(item => `<tr><td>Servico</td><td><strong>${esc(item.name)}</strong></td><td>${esc(item.warranty_days || 90)} dias</td><td>${money(item.labor)}</td></tr>`).join('')}
+              ${!parts.length && !services.length ? '<tr><td colspan="4" class="muted">Orcamento ainda nao montado.</td></tr>' : ''}
+            </tbody></table>
+          </div>
+        </section>
+        <div style="height:16px"></div>
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head"><h2>Fotos do aparelho</h2></div>
+            <div class="panel-body">${photos.length ? `<div class="photos">${photos.map(photo => `<a href="${esc(photo.file_path)}" target="_blank"><img src="${esc(photo.file_path)}" alt="${esc(photo.file_name)}"><small>${esc(photo.file_name)}</small></a>`).join('')}</div>` : '<div class="empty">Nenhuma foto cadastrada.</div>'}</div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>Coleta e entrega</h2></div>
+            <div class="panel-body">${deliveries.length ? `<div id="portalDeliveryMap" class="map"></div><div style="height:12px"></div>${deliveries.map(item => `<div class="box"><span>${esc(item.type || 'Coleta')}</span>${esc(item.status)} - ${money(item.freight_value)}<br><small class="muted">${esc(item.address || '')}</small><br><small class="muted">Coleta ${esc(item.collected_at || '-')} | Entrega ${esc(item.delivered_at || '-')}</small><br><small class="muted">${item.latest_location ? `Ultimo GPS ${esc(item.latest_location.recorded_at || '')}` : 'Aguardando GPS do motoboy'}</small></div>`).join('<div style="height:10px"></div>')}` : '<div class="empty">Nenhuma coleta ou devolucao solicitada.</div>'}</div>
+          </section>
+        </div>
+        <div style="height:16px"></div>
+        <section class="panel">
+          <div class="panel-head"><h2>Historico de movimentacoes</h2></div>
+          <div class="panel-body">${history.length ? history.map(item => `<div class="box"><span>${esc(item.created_at || '')}</span><strong>${esc(item.old_status || 'Inicio')} -> ${esc(item.new_status || '')}</strong><br><small class="muted">${esc(item.note || '')}</small></div>`).join('<div style="height:10px"></div>') : '<div class="empty">Nenhuma movimentacao registrada.</div>'}</div>
+        </section>
+      `;
+      setTimeout(renderPortalMap, 0);
+    }
+
+    function renderPortalMap() {
+      const mapEl = document.getElementById('portalDeliveryMap');
+      if (!mapEl) return;
+      if (!window.L) {
+        mapEl.innerHTML = '<div class="empty">Mapa indisponivel. Verifique a conexao com a internet.</div>';
+        return;
+      }
+      if (portalMap) {
+        portalMap.remove();
+        portalMap = null;
+      }
+      portalMap = L.map(mapEl);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(portalMap);
+      const bounds = [];
+      (payload?.order?.collections || []).forEach(delivery => {
+        const history = (delivery.location_history || []).slice().reverse();
+        const route = history.map(point => [Number(point.latitude), Number(point.longitude)]).filter(point => point.every(Number.isFinite));
+        if (route.length) {
+          L.polyline(route, { color:'#ff6b2c', weight:4, opacity:.85 }).addTo(portalMap);
+          const latest = route[route.length - 1];
+          bounds.push(latest);
+          L.marker(latest).addTo(portalMap).bindPopup(`${esc(delivery.type || 'Entrega')}<br>${esc(delivery.status || '')}<br>${esc(delivery.latest_location?.recorded_at || '')}`);
+        } else if (delivery.pickup_latitude && delivery.pickup_longitude) {
+          const pickup = [Number(delivery.pickup_latitude), Number(delivery.pickup_longitude)];
+          if (pickup.every(Number.isFinite)) {
+            bounds.push(pickup);
+            L.circleMarker(pickup, { radius:7, color:'#185b8b' }).addTo(portalMap).bindPopup('Ponto de coleta');
+          }
+        }
+      });
+      if (bounds.length) {
+        portalMap.fitBounds(bounds, { padding:[30,30], maxZoom:15 });
+      } else {
+        portalMap.setView([-23.55052, -46.633308], 11);
+      }
+    }
+
+    async function refreshFromAction(result) {
+      payload.order = result.order;
+      render();
+      alert(result.message || 'Atualizado.');
+    }
+
+    async function approveBudget() {
+      if (!confirm('Confirmar aprovacao do orcamento?')) return;
+      refreshFromAction(await request(`/api/customer-portal/${encodeURIComponent(token)}/approve`, { method:'POST', body:'{}' }));
+    }
+
+    async function rejectBudget() {
+      const reason = prompt('Informe o motivo da recusa, se desejar') || '';
+      refreshFromAction(await request(`/api/customer-portal/${encodeURIComponent(token)}/reject`, { method:'POST', body:JSON.stringify({ reason }) }));
+    }
+
+    async function paymentForm() {
+      const amount = Number(prompt('Valor do pagamento') || 0);
+      if (!amount) return;
+      const payment_method = prompt('Forma de pagamento', 'PIX') || 'PIX';
+      refreshFromAction(await request(`/api/customer-portal/${encodeURIComponent(token)}/payment`, { method:'POST', body:JSON.stringify({ amount, payment_method }) }));
+    }
+
+    async function deliveryForm(type) {
+      const address = prompt('Endereco para coleta/devolucao', '') || '';
+      const distance_km = Number(prompt('Distancia aproximada em km', '0') || 0);
+      const scheduled_date = prompt('Data desejada (aaaa-mm-dd)', '') || '';
+      const scheduled_time = prompt('Horario desejado', '') || '';
+      refreshFromAction(await request(`/api/customer-portal/${encodeURIComponent(token)}/${type}`, {
+        method:'POST',
+        body:JSON.stringify({ address, distance_km, scheduled_date, scheduled_time })
+      }));
+    }
+
+    load();
+    setInterval(async () => {
+      if (!payload) return;
+      try {
+        payload = await request(`/api/customer-portal/${encodeURIComponent(token)}`);
+        render();
+      } catch (error) {}
+    }, 30000);
+  </script>
+</body>
+</html>

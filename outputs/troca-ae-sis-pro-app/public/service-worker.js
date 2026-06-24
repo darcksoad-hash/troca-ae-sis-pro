@@ -1,5 +1,5 @@
-const CACHE_NAME = 'troca-ae-sis-pro-v29';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/troca-ae-logo.jpg'];
+const CACHE_NAME = 'troca-ae-sis-pro-v40';
+const ASSETS = ['/', '/index.html', '/customer-portal.html', '/manifest.json', '/troca-ae-logo.jpg'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -18,7 +18,8 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    const fallback = url.pathname.startsWith('/portal/') ? '/customer-portal.html' : '/index.html';
+    event.respondWith(fetch(event.request).catch(() => caches.match(fallback)));
     return;
   }
   event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));

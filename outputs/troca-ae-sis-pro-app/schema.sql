@@ -211,6 +211,17 @@ CREATE TABLE IF NOT EXISTS order_photos (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS customer_portal_tokens (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES service_orders(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  permissions TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'Ativo',
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_access_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS finance_entries (
   id TEXT PRIMARY KEY,
   order_id TEXT REFERENCES service_orders(id),
@@ -291,4 +302,87 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action TEXT NOT NULL,
   detail TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_drivers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT,
+  document TEXT,
+  vehicle TEXT,
+  plate TEXT,
+  status TEXT NOT NULL DEFAULT 'Disponível',
+  latitude REAL,
+  longitude REAL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  price_per_km REAL NOT NULL DEFAULT 2.5,
+  minimum_fee REAL NOT NULL DEFAULT 10,
+  free_radius_km REAL NOT NULL DEFAULT 0,
+  notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS delivery_requests (
+  id TEXT PRIMARY KEY,
+  order_id TEXT REFERENCES service_orders(id),
+  client_id TEXT REFERENCES clients(id),
+  driver_id TEXT REFERENCES delivery_drivers(id),
+  type TEXT NOT NULL DEFAULT 'Coleta',
+  status TEXT NOT NULL DEFAULT 'Solicitada',
+  priority TEXT NOT NULL DEFAULT 'Normal',
+  scheduled_date TEXT,
+  scheduled_time TEXT,
+  address TEXT,
+  pickup_latitude REAL,
+  pickup_longitude REAL,
+  distance_km REAL NOT NULL DEFAULT 0,
+  freight_value REAL NOT NULL DEFAULT 0,
+  assignment_status TEXT NOT NULL DEFAULT 'Manual',
+  assignment_started_at TEXT,
+  collected_at TEXT,
+  delivered_at TEXT,
+  document_status TEXT NOT NULL DEFAULT 'Pendente',
+  document_notes TEXT,
+  proof_url TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_locations (
+  id TEXT PRIMARY KEY,
+  delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+  driver_id TEXT REFERENCES delivery_drivers(id),
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  accuracy_m REAL,
+  status TEXT,
+  source TEXT NOT NULL DEFAULT 'manual',
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_events (
+  id TEXT PRIMARY KEY,
+  delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES users(id),
+  old_status TEXT,
+  new_status TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS delivery_assignment_offers (
+  id TEXT PRIMARY KEY,
+  delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+  driver_id TEXT NOT NULL REFERENCES delivery_drivers(id),
+  status TEXT NOT NULL DEFAULT 'Oferecida',
+  distance_km REAL NOT NULL DEFAULT 0,
+  offered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TEXT NOT NULL,
+  responded_at TEXT,
+  note TEXT
 );

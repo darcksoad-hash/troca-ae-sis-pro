@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import smtplib
@@ -510,6 +511,7 @@ def order_payload(order_id=None, include_details=True):
         services_by_order = {}
         photos_by_order = {}
         history_by_order = {}
+        delivery_by_order = {}
         if include_details:
             parts_by_order = grouped(
                 f"""SELECT order_parts.*, parts.name, parts.sku
@@ -529,6 +531,13 @@ def order_payload(order_id=None, include_details=True):
                 FROM order_status_history
                 LEFT JOIN users ON users.id = order_status_history.user_id
                 WHERE order_id IN ({placeholders}) ORDER BY created_at DESC"""
+            )
+            delivery_by_order = grouped(
+                f"""SELECT delivery_requests.*, delivery_drivers.name AS driver_name
+                FROM delivery_requests
+                LEFT JOIN delivery_drivers ON delivery_drivers.id = delivery_requests.driver_id
+                WHERE order_id IN ({placeholders})
+                ORDER BY created_at DESC"""
             )
         part_totals = {
             item["order_id"]: item["total"]
@@ -554,6 +563,7 @@ def order_payload(order_id=None, include_details=True):
             order["services"] = services_by_order.get(order["id"], []) if include_details else []
             order["photos"] = photos_by_order.get(order["id"], []) if include_details else []
             order["status_history"] = history_by_order.get(order["id"], []) if include_details else []
+            order["delivery_collections"] = delivery_by_order.get(order["id"], []) if include_details else []
             order["calc"] = {"total": total, "paid": paid, "balance": total - paid}
         return orders[0] if order_id and orders else (None if order_id else orders)
 
@@ -671,6 +681,177 @@ def parts_list_payload(query="", manufacturer_id="", stock_filter="", page=1, pa
     return {"parts": items, "parts_meta": {"total": total, "page": page, "page_size": page_size, "query": query, "manufacturer_id": manufacturer_id, "stock_filter": stock_filter}}
 
 
+DELIVERY_DRIVER_STATUSES = ["Disponível", "Em rota", "Coletando", "Em transporte", "Entregue", "Offline"]
+DELIVERY_REQUEST_STATUSES = ["Solicitada", "Aguardando aceite", "Em rota", "Coletando", "Em transporte", "Entregue", "Cancelada"]
+
+
+def as_float(value):
+    try:
+        if value in ("", None):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    values = [as_float(lat1), as_float(lon1), as_float(lat2), as_float(lon2)]
+    if any(value is None for value in values):
+        return None
+    radius = 6371.0
+    lat1, lon1, lat2, lon2 = [math.radians(value) for value in values]
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    calc = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return round(radius * 2 * math.atan2(math.sqrt(calc), math.sqrt(1 - calc)), 2)
+
+
+def delivery_driver_distance(delivery, driver):
+    distance = haversine_km(driver.get("latitude"), driver.get("longitude"), delivery.get("pickup_latitude"), delivery.get("pickup_longitude"))
+    if distance is not None:
+        return distance
+    base_distance = as_float(delivery.get("distance_km"))
+    driver_offset = as_float(driver.get("longitude"))
+    if base_distance is not None:
+        return round(base_distance + abs(driver_offset or 0) * 0.01, 2)
+    return 9999
+
+
+def attach_delivery_locations(deliveries, limit_per_delivery=30):
+    if not deliveries:
+        return deliveries
+    delivery_ids = [item["id"] for item in deliveries if item.get("id")]
+    if not delivery_ids:
+        return deliveries
+    placeholders = ",".join("?" for _ in delivery_ids)
+    locations = rows(
+        f"""SELECT delivery_locations.*, delivery_drivers.name AS driver_name
+        FROM delivery_locations
+        LEFT JOIN delivery_drivers ON delivery_drivers.id=delivery_locations.driver_id
+        WHERE delivery_id IN ({placeholders})
+        ORDER BY recorded_at DESC""",
+        delivery_ids,
+    )
+    by_delivery = {delivery_id: [] for delivery_id in delivery_ids}
+    for location in locations:
+        items = by_delivery.setdefault(location["delivery_id"], [])
+        if len(items) < limit_per_delivery:
+            items.append(location)
+    for delivery in deliveries:
+        history = by_delivery.get(delivery["id"], [])
+        delivery["location_history"] = history
+        delivery["latest_location"] = history[0] if history else None
+    return deliveries
+
+
+def expire_delivery_offers(conn):
+    expired = conn.execute(
+        "SELECT * FROM delivery_assignment_offers WHERE status='Oferecida' AND expires_at < ?",
+        (now(),),
+    ).fetchall()
+    for offer in expired:
+        delivery = conn.execute("SELECT id,status FROM delivery_requests WHERE id=?", (offer["delivery_id"],)).fetchone()
+        conn.execute(
+            "UPDATE delivery_assignment_offers SET status='Expirada', responded_at=?, note=? WHERE id=?",
+            (now(), "Tempo de resposta de 60 segundos encerrado.", offer["id"]),
+        )
+        if delivery and delivery["status"] == "Aguardando aceite":
+            conn.execute(
+                "INSERT INTO delivery_events(id,delivery_id,user_id,old_status,new_status,note) VALUES(?,?,?,?,?,?)",
+                (uid("dev"), offer["delivery_id"], None, "Aguardando aceite", "Aguardando aceite", "Oferta expirada, encaminhando para o proximo motoboy."),
+            )
+            assign_next_delivery_driver(conn, offer["delivery_id"], None, auto=True)
+
+
+def assign_next_delivery_driver(conn, delivery_id, user_id=None, auto=False):
+    delivery = conn.execute("SELECT * FROM delivery_requests WHERE id=?", (delivery_id,)).fetchone()
+    if not delivery:
+        return None, "Solicitacao nao encontrada."
+    active_offer = conn.execute(
+        "SELECT * FROM delivery_assignment_offers WHERE delivery_id=? AND status='Oferecida' AND expires_at >= ? ORDER BY offered_at DESC LIMIT 1",
+        (delivery_id, now()),
+    ).fetchone()
+    if active_offer:
+        return row_dict(active_offer), "Ja existe oferta aguardando resposta."
+    accepted = conn.execute(
+        "SELECT * FROM delivery_assignment_offers WHERE delivery_id=? AND status='Aceita' ORDER BY responded_at DESC LIMIT 1",
+        (delivery_id,),
+    ).fetchone()
+    if accepted:
+        return row_dict(accepted), "Entrega ja aceita por motoboy."
+    previous_drivers = {item["driver_id"] for item in conn.execute("SELECT driver_id FROM delivery_assignment_offers WHERE delivery_id=?", (delivery_id,)).fetchall()}
+    drivers = [
+        row_dict(item)
+        for item in conn.execute("SELECT * FROM delivery_drivers WHERE status=?", ("Disponível",)).fetchall()
+        if item["id"] not in previous_drivers
+    ]
+    if not drivers:
+        conn.execute("UPDATE delivery_requests SET assignment_status='Sem motoboy disponível', updated_at=CURRENT_TIMESTAMP WHERE id=?", (delivery_id,))
+        return None, "Nao ha motoboy disponivel para oferecer."
+    delivery_dict = row_dict(delivery)
+    drivers.sort(key=lambda driver: (delivery_driver_distance(delivery_dict, driver), driver.get("name") or ""))
+    driver = drivers[0]
+    offer_id = uid("offer")
+    distance = delivery_driver_distance(delivery_dict, driver)
+    expires_at = seconds_from_now(60)
+    conn.execute(
+        """INSERT INTO delivery_assignment_offers(id,delivery_id,driver_id,status,distance_km,offered_at,expires_at,note)
+        VALUES(?,?,?,?,?,?,?,?)""",
+        (offer_id, delivery_id, driver["id"], "Oferecida", distance, now(), expires_at, "Oferta automatica para motoboy mais proximo."),
+    )
+    old_status = delivery["status"]
+    conn.execute(
+        "UPDATE delivery_requests SET driver_id=?,status='Aguardando aceite',assignment_status='Oferta enviada',assignment_started_at=COALESCE(assignment_started_at,?),updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (driver["id"], now(), delivery_id),
+    )
+    conn.execute(
+        "INSERT INTO delivery_events(id,delivery_id,user_id,old_status,new_status,note) VALUES(?,?,?,?,?,?)",
+        (uid("dev"), delivery_id, user_id, old_status, "Aguardando aceite", f"Oferta enviada para {driver['name']} por 60 segundos ({distance} km)."),
+    )
+    return row_dict(conn.execute("SELECT * FROM delivery_assignment_offers WHERE id=?", (offer_id,)).fetchone()), "Oferta enviada."
+
+
+def delivery_payload():
+    with db() as conn:
+        expire_delivery_offers(conn)
+        conn.commit()
+    deliveries = rows(
+        """SELECT delivery_requests.*, clients.name AS client_name, service_orders.number AS order_number,
+        delivery_drivers.name AS driver_name
+        FROM delivery_requests
+        LEFT JOIN clients ON clients.id=delivery_requests.client_id
+        LEFT JOIN service_orders ON service_orders.id=delivery_requests.order_id
+        LEFT JOIN delivery_drivers ON delivery_drivers.id=delivery_requests.driver_id
+        WHERE delivery_requests.type='Coleta'
+        ORDER BY COALESCE(delivery_requests.scheduled_date,'9999-12-31'), delivery_requests.created_at DESC"""
+    )
+    attach_delivery_locations(deliveries)
+    drivers = rows("SELECT * FROM delivery_drivers ORDER BY name")
+    events = rows(
+        """SELECT delivery_events.*, users.name AS user_name
+        FROM delivery_events
+        LEFT JOIN users ON users.id=delivery_events.user_id
+        ORDER BY delivery_events.created_at DESC"""
+    )
+    offers = rows(
+        """SELECT delivery_assignment_offers.*, delivery_drivers.name AS driver_name
+        FROM delivery_assignment_offers
+        LEFT JOIN delivery_drivers ON delivery_drivers.id=delivery_assignment_offers.driver_id
+        ORDER BY delivery_assignment_offers.offered_at DESC"""
+    )
+    settings = row("SELECT * FROM delivery_settings WHERE id=1") or {"id": 1, "price_per_km": 2.5, "minimum_fee": 10, "free_radius_km": 0, "notes": ""}
+    open_statuses = ("Solicitada", "Aguardando aceite", "Em rota", "Coletando", "Em transporte")
+    summary = {
+        "total": len(deliveries),
+        "open": len([item for item in deliveries if item.get("status") in open_statuses]),
+        "scheduled": len([item for item in deliveries if item.get("status") == "Aguardando aceite"]),
+        "in_route": len([item for item in deliveries if item.get("status") == "Em rota"]),
+        "finished": len([item for item in deliveries if item.get("status") == "Entregue"]),
+        "available_drivers": len([item for item in drivers if item.get("status") == "Disponível"]),
+    }
+    return {"delivery_requests": deliveries, "delivery_drivers": drivers, "delivery_events": events, "delivery_assignment_offers": offers, "delivery_settings": settings, "delivery_summary": summary}
+
+
 def insert_status_history(conn, order_id, user_id, old_status, new_status, note):
     if old_status == new_status and note != "OS criada":
         return
@@ -678,6 +859,60 @@ def insert_status_history(conn, order_id, user_id, old_status, new_status, note)
         "INSERT INTO order_status_history(id,order_id,user_id,old_status,new_status,note) VALUES(?,?,?,?,?,?)",
         (uid("hist"), order_id, user_id, old_status or "", new_status or "", note or ""),
     )
+
+
+CUSTOMER_PORTAL_PERMISSIONS = {
+    "consultar_os": True,
+    "ver_status": True,
+    "ver_orcamento": True,
+    "aprovar_orcamento": True,
+    "recusar_orcamento": True,
+    "ver_fotos": True,
+    "ver_historico": True,
+    "ver_frete": True,
+    "solicitar_coleta": True,
+    "solicitar_devolucao": True,
+    "realizar_pagamento": True,
+}
+
+
+def customer_permissions():
+    return CUSTOMER_PORTAL_PERMISSIONS.copy()
+
+
+def public_order_payload(order_id):
+    order = order_payload(order_id, include_details=True)
+    if not order:
+        return None
+    attach_delivery_locations(order.get("delivery_collections", []), limit_per_delivery=50)
+    freight_value = sum(float(item.get("freight_value") or 0) for item in order.get("delivery_collections", []))
+    return {
+        "id": order["id"],
+        "number": order["number"],
+        "client_name": order.get("client_name", ""),
+        "device": {
+            "brand": order.get("device_brand", ""),
+            "model": order.get("device_model", ""),
+            "imei": order.get("device_imei", ""),
+            "color": order.get("device_color", ""),
+            "condition": order.get("device_condition", ""),
+        },
+        "status": order.get("status", ""),
+        "approval_status": order.get("approval_status", ""),
+        "priority": order.get("priority", ""),
+        "opened": order.get("opened", ""),
+        "due": order.get("due", ""),
+        "defect": order.get("defect", ""),
+        "diagnosis": order.get("diagnosis", ""),
+        "solution": order.get("solution", ""),
+        "parts": order.get("parts", []),
+        "services": order.get("services", []),
+        "photos": order.get("photos", []),
+        "history": order.get("status_history", []),
+        "collections": order.get("delivery_collections", []),
+        "freight_value": freight_value,
+        "calc": order.get("calc", {"total": 0, "paid": 0, "balance": 0}),
+    }
 
 
 def seed():
@@ -749,6 +984,64 @@ def seed():
             }.items():
                 if column not in finance_columns:
                     conn.execute(f"ALTER TABLE finance_entries ADD COLUMN {column} {definition}")
+            driver_columns = table_columns(conn, "delivery_drivers")
+            for column, definition in {
+                "latitude": "REAL",
+                "longitude": "REAL",
+            }.items():
+                if column not in driver_columns:
+                    conn.execute(f"ALTER TABLE delivery_drivers ADD COLUMN {column} {definition}")
+            conn.execute("UPDATE delivery_drivers SET status='Disponível' WHERE status='Ativo'")
+            conn.execute("UPDATE delivery_drivers SET status='Offline' WHERE status='Inativo'")
+            delivery_columns = table_columns(conn, "delivery_requests")
+            for column, definition in {
+                "pickup_latitude": "REAL",
+                "pickup_longitude": "REAL",
+                "assignment_status": "TEXT NOT NULL DEFAULT 'Manual'",
+                "assignment_started_at": "TEXT",
+                "collected_at": "TEXT",
+                "delivered_at": "TEXT",
+            }.items():
+                if column not in delivery_columns:
+                    conn.execute(f"ALTER TABLE delivery_requests ADD COLUMN {column} {definition}")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS delivery_locations (
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+                driver_id TEXT REFERENCES delivery_drivers(id),
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                accuracy_m REAL,
+                status TEXT,
+                source TEXT NOT NULL DEFAULT 'manual',
+                recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS delivery_assignment_offers (
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+                driver_id TEXT NOT NULL REFERENCES delivery_drivers(id),
+                status TEXT NOT NULL DEFAULT 'Oferecida',
+                distance_km REAL NOT NULL DEFAULT 0,
+                offered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at TEXT NOT NULL,
+                responded_at TEXT,
+                note TEXT
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS customer_portal_tokens (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL REFERENCES service_orders(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                permissions TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'Ativo',
+                expires_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_access_at TEXT
+                )"""
+            )
         else:
             conn.execute("ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS dark_color TEXT NOT NULL DEFAULT '#18231f'")
             conn.execute("ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'light'")
@@ -783,6 +1076,54 @@ def seed():
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS recurrence_until TEXT")
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS installment INTEGER NOT NULL DEFAULT 1")
             conn.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS installments INTEGER NOT NULL DEFAULT 1")
+            conn.execute("ALTER TABLE delivery_drivers ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION")
+            conn.execute("ALTER TABLE delivery_drivers ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION")
+            conn.execute("UPDATE delivery_drivers SET status='Disponível' WHERE status='Ativo'")
+            conn.execute("UPDATE delivery_drivers SET status='Offline' WHERE status='Inativo'")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS pickup_latitude DOUBLE PRECISION")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS pickup_longitude DOUBLE PRECISION")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS assignment_status TEXT NOT NULL DEFAULT 'Manual'")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS assignment_started_at TEXT")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS collected_at TEXT")
+            conn.execute("ALTER TABLE delivery_requests ADD COLUMN IF NOT EXISTS delivered_at TEXT")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS delivery_locations (
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+                driver_id TEXT REFERENCES delivery_drivers(id),
+                latitude DOUBLE PRECISION NOT NULL,
+                longitude DOUBLE PRECISION NOT NULL,
+                accuracy_m DOUBLE PRECISION,
+                status TEXT,
+                source TEXT NOT NULL DEFAULT 'manual',
+                recorded_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::TEXT)
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS delivery_assignment_offers (
+                id TEXT PRIMARY KEY,
+                delivery_id TEXT NOT NULL REFERENCES delivery_requests(id) ON DELETE CASCADE,
+                driver_id TEXT NOT NULL REFERENCES delivery_drivers(id),
+                status TEXT NOT NULL DEFAULT 'Oferecida',
+                distance_km DOUBLE PRECISION NOT NULL DEFAULT 0,
+                offered_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::TEXT),
+                expires_at TEXT NOT NULL,
+                responded_at TEXT,
+                note TEXT
+                )"""
+            )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS customer_portal_tokens (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL REFERENCES service_orders(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL UNIQUE,
+                permissions TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'Ativo',
+                expires_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::TEXT),
+                last_access_at TEXT
+                )"""
+            )
         if conn.execute("SELECT COUNT(*) AS total FROM roles").fetchone()["total"] == 0:
             permissions = {
                 "clientes": ["ver", "criar", "editar", "excluir"],
@@ -793,6 +1134,7 @@ def seed():
                 "pdv": ["ver", "criar", "editar", "excluir"],
                 "relatorios": ["ver", "exportar"],
                 "fabricantes": ["ver", "criar", "editar", "excluir"],
+                "logistica": ["ver", "criar", "editar", "excluir"],
                 "configuracoes": ["ver", "editar"],
                 "auditoria": ["ver"],
             }
@@ -816,6 +1158,10 @@ def seed():
                 (id,system_name,trade_name,legal_name,logo_path,primary_color,dark_color,theme,warranty_term,print_footer)
                 VALUES(1,?,?,?,?,?,?,?,?,?)""",
                 ("Troca Ae SIS PRO", "Troca Ae SIS PRO", "", "/troca-ae-logo.jpg", "#f9732f", "#18231f", "light", warranty, "Obrigado pela preferencia."),
+            )
+            conn.execute(
+                "INSERT INTO delivery_settings(id,price_per_km,minimum_fee,free_radius_km,notes) VALUES(1,?,?,?,?)",
+                (2.5, 10, 0, "Configuracao inicial de frete por km."),
             )
             conn.execute(
                 "INSERT INTO clients(id,name,phone,email,document,zip,street,number,neighborhood,city,state,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -845,6 +1191,10 @@ def seed():
                 "INSERT INTO audit_logs(id,user_id,action,detail) VALUES(?,?,?,?)",
                 (uid("aud"), "usr-admin", "Sistema iniciado", "Banco criado com usuario administrador."),
             )
+        conn.execute(
+            "INSERT OR IGNORE INTO delivery_settings(id,price_per_km,minimum_fee,free_radius_km,notes) VALUES(1,?,?,?,?)",
+            (2.5, 10, 0, "Configuracao inicial de frete por km."),
+        )
         conn.commit()
     ensure_default_permissions()
     ensure_default_roles()
@@ -876,6 +1226,8 @@ def ensure_default_permissions():
         "pdv": ["ver", "criar", "editar", "excluir"],
         "relatorios": ["ver", "exportar"],
         "fabricantes": ["ver", "criar", "editar", "excluir"],
+        "logistica": ["ver", "criar", "editar", "excluir"],
+        "cliente_portal": list(CUSTOMER_PORTAL_PERMISSIONS.keys()),
         "configuracoes": ["ver", "editar"],
         "auditoria": ["ver"],
     }
@@ -892,9 +1244,10 @@ def ensure_default_permissions():
 
 def ensure_default_roles():
     defaults = [
-        ("role-atd", "Atendente", 40, {"clientes": ["ver", "criar", "editar"], "os": ["ver", "criar"], "fabricantes": ["ver"], "estoque": ["ver"], "servicos": ["ver"]}),
+        ("role-atd", "Atendente", 40, {"clientes": ["ver", "criar", "editar"], "os": ["ver", "criar"], "fabricantes": ["ver"], "estoque": ["ver"], "servicos": ["ver"], "logistica": ["ver", "criar"]}),
         ("role-tec", "Tecnico", 60, {"os": ["ver", "editar", "finalizar"], "estoque": ["ver", "movimentar"], "fabricantes": ["ver"], "servicos": ["ver"]}),
         ("role-fin", "Financeiro", 70, {"financeiro": ["ver", "criar", "editar", "pagar"], "relatorios": ["ver", "exportar"], "os": ["ver"]}),
+        ("role-cliente", "Cliente", 5, {"cliente_portal": list(CUSTOMER_PORTAL_PERMISSIONS.keys())}),
     ]
     with db() as conn:
         for role_id, name, level, permissions in defaults:
@@ -929,6 +1282,19 @@ def ensure_performance_indexes():
         "CREATE INDEX IF NOT EXISTS idx_stock_movements_created ON stock_movements(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_stock_movements_part ON stock_movements(part_id)",
         "CREATE INDEX IF NOT EXISTS idx_pos_sales_date ON pos_sales(date)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_status ON delivery_requests(status)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_order ON delivery_requests(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_client ON delivery_requests(client_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_driver ON delivery_requests(driver_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_date ON delivery_requests(scheduled_date)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_events_delivery ON delivery_events(delivery_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_locations_delivery ON delivery_locations(delivery_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_locations_driver ON delivery_locations(driver_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_offers_delivery ON delivery_assignment_offers(delivery_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_offers_driver ON delivery_assignment_offers(driver_id)",
+        "CREATE INDEX IF NOT EXISTS idx_delivery_offers_status ON delivery_assignment_offers(status, expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_customer_portal_order ON customer_portal_tokens(order_id)",
+        "CREATE INDEX IF NOT EXISTS idx_customer_portal_hash ON customer_portal_tokens(token_hash)",
     ]
     with db() as conn:
         for statement in indexes:
@@ -1244,6 +1610,14 @@ class App(BaseHTTPRequestHandler):
                 "pos_sales": rows("SELECT * FROM pos_sales ORDER BY date DESC, number DESC") if allowed else [],
                 "pos_sale_items": rows("SELECT * FROM pos_sale_items ORDER BY id") if allowed else [],
             }
+        if page == "delivery":
+            allowed = self.has_permission(user, "logistica", "ver")
+            if not allowed:
+                return payload | {"delivery_requests": [], "delivery_drivers": [], "delivery_events": [], "delivery_summary": {}, "delivery_settings": row("SELECT * FROM delivery_settings WHERE id=1")}
+            return payload | delivery_payload() | {
+                "clients": rows("SELECT * FROM clients ORDER BY name"),
+                "orders": order_payload(include_details=False) if self.has_permission(user, "os", "ver") else [],
+            }
         if page == "settings":
             allowed = self.has_permission(user, "configuracoes", "ver")
             return payload | {
@@ -1290,16 +1664,182 @@ class App(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def portal_record(self, raw_token):
+        token = (raw_token or "").strip()
+        if len(token) < 20:
+            return None
+        record = row(
+            """SELECT customer_portal_tokens.*, service_orders.number, service_orders.client_id
+            FROM customer_portal_tokens
+            JOIN service_orders ON service_orders.id=customer_portal_tokens.order_id
+            WHERE customer_portal_tokens.token_hash=?""",
+            (token_hash(token),),
+        )
+        if not record or record.get("status") != "Ativo":
+            return None
+        if record.get("expires_at") and record["expires_at"] < now():
+            return None
+        execute("UPDATE customer_portal_tokens SET last_access_at=? WHERE id=?", (now(), record["id"]))
+        return record
+
+    def portal_permissions(self, record):
+        try:
+            permissions = json.loads(record.get("permissions") or "{}")
+        except Exception:
+            permissions = {}
+        return {**customer_permissions(), **permissions}
+
+    def portal_payload(self, record):
+        company = row("SELECT * FROM company_settings WHERE id=1") or {}
+        return {
+            "company": {
+                "name": company.get("trade_name") or company.get("system_name") or "Troca Ae SIS PRO",
+                "phone": company.get("phone") or "",
+                "email": company.get("email") or "",
+                "logo_path": company.get("logo_path") or "/troca-ae-logo.jpg",
+            },
+            "permissions": self.portal_permissions(record),
+            "order": public_order_payload(record["order_id"]),
+        }
+
+    def api_customer_portal_get(self, path):
+        token = path.replace("/api/customer-portal/", "", 1).split("/", 1)[0]
+        record = self.portal_record(token)
+        if not record:
+            self.send_json({"error": "Link invalido ou expirado."}, 404)
+            return
+        self.send_json(self.portal_payload(record))
+
+    def api_customer_portal_post(self, path):
+        parts = path.replace("/api/customer-portal/", "", 1).split("/")
+        token = parts[0] if parts else ""
+        action = parts[1] if len(parts) > 1 else ""
+        record = self.portal_record(token)
+        if not record:
+            self.send_json({"error": "Link invalido ou expirado."}, 404)
+            return
+        permissions = self.portal_permissions(record)
+        permission_by_action = {
+            "approve": "aprovar_orcamento",
+            "reject": "recusar_orcamento",
+            "collect": "solicitar_coleta",
+            "return": "solicitar_devolucao",
+            "payment": "realizar_pagamento",
+        }
+        needed = permission_by_action.get(action)
+        if not needed:
+            self.send_json({"error": "Acao nao encontrada."}, 404)
+            return
+        if not permissions.get(needed):
+            self.send_json({"error": "Acao nao permitida para este link."}, 403)
+            return
+        data = self.read_json()
+        result = self.handle_portal_action(record, action, data)
+        if result:
+            self.send_json(result)
+
+    def handle_portal_action(self, record, action, data):
+        order_id = record["order_id"]
+        order = row(
+            """SELECT service_orders.*, clients.name AS client_name, clients.phone AS client_phone,
+            clients.email AS client_email, clients.street, clients.number AS address_number,
+            clients.neighborhood, clients.city, clients.state, clients.complement
+            FROM service_orders
+            JOIN clients ON clients.id=service_orders.client_id
+            WHERE service_orders.id=?""",
+            (order_id,),
+        )
+        if not order:
+            self.send_json({"error": "OS nao encontrada."}, 404)
+            return None
+        if action == "approve":
+            with db() as conn:
+                conn.execute("UPDATE service_orders SET approval_status='Aprovada', status='Aprovada', updated_at=CURRENT_TIMESTAMP WHERE id=?", (order_id,))
+                insert_status_history(conn, order_id, None, order.get("status") or "", "Aprovada", "Orcamento aprovado pelo portal do cliente")
+                conn.commit()
+            return {"ok": True, "message": "Orcamento aprovado.", "order": public_order_payload(order_id)}
+        if action == "reject":
+            with db() as conn:
+                conn.execute("UPDATE service_orders SET approval_status='Reprovada', status='Cancelada', updated_at=CURRENT_TIMESTAMP WHERE id=?", (order_id,))
+                insert_status_history(conn, order_id, None, order.get("status") or "", "Cancelada", data.get("reason") or "Orcamento recusado pelo portal do cliente")
+                conn.commit()
+            return {"ok": True, "message": "Orcamento recusado.", "order": public_order_payload(order_id)}
+        if action == "payment":
+            amount = float(data.get("amount", 0) or 0)
+            if amount <= 0:
+                self.send_json({"error": "Valor invalido."}, 400)
+                return None
+            method = data.get("payment_method") or "PIX"
+            payment_id = uid("fin")
+            with db() as conn:
+                conn.execute("UPDATE service_orders SET paid=paid+?, updated_at=CURRENT_TIMESTAMP WHERE id=?", (amount, order_id))
+                conn.execute(
+                    "INSERT INTO finance_entries(id,order_id,type,date,due_date,category,description,amount,status,payment_method) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (payment_id, order_id, "Entrada", today(), today(), "Pagamento OS", f"Pagamento portal OS {order['number']}", amount, "Recebido", method),
+                )
+                conn.commit()
+            return {"ok": True, "message": "Pagamento registrado.", "order": public_order_payload(order_id)}
+        if action in ("collect", "return"):
+            delivery_type = "Coleta" if action == "collect" else "Devolucao"
+            address = data.get("address") or ", ".join(
+                item for item in [order.get("street") or "", order.get("address_number") or "", order.get("neighborhood") or "", order.get("city") or "", order.get("state") or ""] if item
+            )
+            distance = float(data.get("distance_km", 0) or 0)
+            settings = row("SELECT * FROM delivery_settings WHERE id=1") or {"price_per_km": 2.5, "minimum_fee": 10, "free_radius_km": 0}
+            free_radius = float(settings.get("free_radius_km") or 0)
+            freight = 0 if distance <= free_radius else max(float(settings.get("minimum_fee") or 0), distance * float(settings.get("price_per_km") or 0))
+            delivery_id = uid("del")
+            with db() as conn:
+                conn.execute(
+                    """INSERT INTO delivery_requests(id,order_id,client_id,type,status,priority,scheduled_date,scheduled_time,address,distance_km,freight_value,document_status,notes)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (delivery_id, order_id, order["client_id"], delivery_type, "Solicitada", data.get("priority", "Normal"), data.get("scheduled_date", ""), data.get("scheduled_time", ""), address, distance, freight, "Pendente", data.get("notes", "")),
+                )
+                conn.execute(
+                    "INSERT INTO delivery_events(id,delivery_id,user_id,old_status,new_status,note) VALUES(?,?,?,?,?,?)",
+                    (uid("dev"), delivery_id, None, "", "Solicitada", f"{delivery_type} solicitada pelo portal do cliente"),
+                )
+                conn.commit()
+            return {"ok": True, "message": f"{delivery_type} solicitada.", "order": public_order_payload(order_id)}
+        self.send_json({"error": "Acao nao encontrada."}, 404)
+        return None
+
+    def create_customer_portal_link(self, order_id, user):
+        order = row("SELECT id, number FROM service_orders WHERE id=?", (order_id,))
+        if not order:
+            self.send_json({"error": "OS nao encontrada."}, 404)
+            return
+        raw_token = secrets.token_urlsafe(32)
+        portal_id = uid("portal")
+        expires_at = seconds_from_now(30 * 24 * 60 * 60)
+        with db() as conn:
+            conn.execute(
+                "INSERT INTO customer_portal_tokens(id,order_id,token_hash,permissions,status,expires_at) VALUES(?,?,?,?,?,?)",
+                (portal_id, order_id, token_hash(raw_token), json.dumps(customer_permissions()), "Ativo", expires_at),
+            )
+            conn.execute(
+                "INSERT INTO audit_logs(id,user_id,action,detail) VALUES(?,?,?,?)",
+                (uid("aud"), user["id"], "Link do portal criado", f"OS {order['number']}"),
+            )
+            conn.commit()
+        self.send_json({"url": f"{app_url_from_request(self)}/portal/{raw_token}", "expires_at": expires_at})
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             self.serve_file(PUBLIC, "index.html")
+            return
+        if path.startswith("/portal/"):
+            self.serve_file(PUBLIC, "customer-portal.html")
             return
         if path.startswith("/uploads/"):
             self.serve_file(UPLOADS, path.replace("/uploads/", "", 1))
             return
         if path.startswith("/api/"):
             try:
+                if path.startswith("/api/customer-portal/"):
+                    self.api_customer_portal_get(path)
+                    return
                 self.api_get(path)
             except Exception as error:
                 traceback.print_exc()
@@ -1309,6 +1849,13 @@ class App(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path.startswith("/api/customer-portal/"):
+            try:
+                self.api_customer_portal_post(path)
+            except Exception as error:
+                traceback.print_exc()
+                self.send_json({"error": f"Erro interno: {error}"}, 500)
+            return
         if path == "/api/auth/request-password-reset":
             self.request_password_reset(self.read_json())
             return
@@ -1573,6 +2120,30 @@ class App(BaseHTTPRequestHandler):
             if not self.require_permission(user, "pdv", "criar"):
                 return
             self.save_pos_sale(data, user)
+        elif path.startswith("/api/delivery-drivers"):
+            if not self.require_permission(user, "logistica", "editar" if self.id_from_path(path) else "criar"):
+                return
+            self.save_delivery_driver(path, data, user)
+        elif path.startswith("/api/delivery-requests"):
+            if not self.require_permission(user, "logistica", "editar" if self.id_from_path(path) else "criar"):
+                return
+            self.save_delivery_request(path, data, user)
+        elif path.startswith("/api/delivery-dispatch/"):
+            if not self.require_permission(user, "logistica", "editar"):
+                return
+            self.dispatch_delivery(path, user)
+        elif path.startswith("/api/delivery-offers/"):
+            if not self.require_permission(user, "logistica", "editar"):
+                return
+            self.answer_delivery_offer(path, data, user)
+        elif path == "/api/delivery-location":
+            if not self.require_permission(user, "logistica", "editar"):
+                return
+            self.save_delivery_location(data, user)
+        elif path == "/api/delivery-settings":
+            if not self.require_permission(user, "logistica", "editar"):
+                return
+            self.save_delivery_settings(data, user)
         elif path.startswith("/api/services"):
             if not self.require_permission(user, "servicos", "editar" if self.id_from_path(path) else "criar"):
                 return
@@ -1665,6 +2236,10 @@ class App(BaseHTTPRequestHandler):
             if not self.require_permission(user, "os", "finalizar"):
                 return
             self.sign_order(path, data, user, "delivery")
+        elif path.startswith("/api/orders/") and path.endswith("/portal-link"):
+            if not self.require_permission(user, "os", "ver"):
+                return
+            self.create_customer_portal_link(path.split("/")[3], user)
         elif path.startswith("/api/orders/") and not path.endswith("/payment") and not path.endswith("/finish") and not path.endswith("/photos") and not path.endswith("/approve") and not path.endswith("/deliver"):
             if not self.require_permission(user, "os", "editar"):
                 return
@@ -1891,6 +2466,245 @@ class App(BaseHTTPRequestHandler):
             action = "Modelo criado"
         self.audit(user["id"], action, data.get("name", ""))
         self.send_json(row("SELECT * FROM product_models WHERE id=?", (item_id,)), 201 if not exists else 200)
+
+    def save_delivery_driver(self, path, data, user):
+        item_id = self.id_from_path(path) or uid("drv")
+        exists = row("SELECT id FROM delivery_drivers WHERE id=?", (item_id,))
+        params = (
+            data.get("name", ""),
+            data.get("phone", ""),
+            data.get("document", ""),
+            data.get("vehicle", ""),
+            data.get("plate", ""),
+            data.get("status", "Disponível"),
+            as_float(data.get("latitude")),
+            as_float(data.get("longitude")),
+            data.get("notes", ""),
+        )
+        if not params[0].strip():
+            self.send_json({"error": "Informe o nome do motoboy."}, 400)
+            return
+        if exists:
+            execute("UPDATE delivery_drivers SET name=?,phone=?,document=?,vehicle=?,plate=?,status=?,latitude=?,longitude=?,notes=? WHERE id=?", (*params, item_id))
+            action = "Motoboy editado"
+        else:
+            execute("INSERT INTO delivery_drivers(id,name,phone,document,vehicle,plate,status,latitude,longitude,notes) VALUES(?,?,?,?,?,?,?,?,?,?)", (item_id, *params))
+            action = "Motoboy criado"
+        self.audit(user["id"], action, params[0])
+        self.send_json(row("SELECT * FROM delivery_drivers WHERE id=?", (item_id,)), 201 if not exists else 200)
+
+    def insert_delivery_event(self, conn, delivery_id, user_id, old_status, new_status, note):
+        conn.execute(
+            "INSERT INTO delivery_events(id,delivery_id,user_id,old_status,new_status,note) VALUES(?,?,?,?,?,?)",
+            (uid("dev"), delivery_id, user_id, old_status or "", new_status or "", note or ""),
+        )
+
+    def save_delivery_request(self, path, data, user):
+        item_id = self.id_from_path(path) or uid("del")
+        exists = row("SELECT id,status FROM delivery_requests WHERE id=?", (item_id,))
+        distance = float(data.get("distance_km", 0) or 0)
+        freight = data.get("freight_value", "")
+        if freight == "" or freight is None:
+            settings = row("SELECT * FROM delivery_settings WHERE id=1") or {"price_per_km": 2.5, "minimum_fee": 10, "free_radius_km": 0}
+            billable_km = max(0, distance - float(settings.get("free_radius_km") or 0))
+            freight = max(float(settings.get("minimum_fee") or 0), billable_km * float(settings.get("price_per_km") or 0)) if distance > 0 else 0
+        order_id = data.get("order_id") or None
+        client_id = data.get("client_id") or None
+        created_order = None
+        if order_id:
+            linked_order = row("SELECT id, number, client_id FROM service_orders WHERE id=?", (order_id,))
+            if not linked_order:
+                self.send_json({"error": "OS vinculada nao encontrada."}, 404)
+                return
+            client_id = linked_order["client_id"]
+        if not client_id:
+            self.send_json({"error": "Informe o cliente para criar a coleta e a OS automaticamente."}, 400)
+            return
+        params = (
+            order_id,
+            client_id,
+            data.get("driver_id") or None,
+            "Coleta",
+            data.get("status", "Solicitada"),
+            data.get("priority", "Normal"),
+            data.get("scheduled_date", ""),
+            data.get("scheduled_time", ""),
+            data.get("address", ""),
+            as_float(data.get("pickup_latitude")),
+            as_float(data.get("pickup_longitude")),
+            distance,
+            float(freight or 0),
+            data.get("assignment_status", "Manual"),
+            data.get("assignment_started_at", ""),
+            data.get("document_status", "Pendente"),
+            data.get("document_notes", ""),
+            data.get("proof_url", ""),
+            data.get("notes", ""),
+        )
+        with db() as conn:
+            if not exists and not order_id:
+                order_id = uid("os")
+                number = conn.execute("SELECT COALESCE(MAX(number),1000)+1 AS next FROM service_orders").fetchone()["next"]
+                opened = today()
+                due = data.get("scheduled_date") or opened
+                address = data.get("address", "")
+                status = data.get("status", "Solicitada")
+                notes = data.get("notes", "")
+                defect = "Coleta solicitada pelo modulo Coleta e Entrega."
+                photos_notes = "\n".join([line for line in [
+                    f"Endereco da coleta: {address}" if address else "",
+                    f"Status da coleta: {status}",
+                    f"Observacoes da coleta: {notes}" if notes else "",
+                ] if line])
+                conn.execute(
+                    """INSERT INTO service_orders
+                    (id,number,client_id,device_manufacturer_id,device_model_id,device_brand,device_model,device_imei,device_color,device_password,device_condition,status,approval_status,priority,opened,due,technician_name,defect,diagnosis,solution,photos_notes,warranty_term,delivery_term,follow_up,discount,paid)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (order_id, number, client_id, None, None, "", "", "", "", "", "", "Aberta", "Pendente", data.get("priority", "Normal"), opened, due, "", defect, "", "", photos_notes, "", "", f"Coleta vinculada: {item_id}", 0, 0),
+                )
+                insert_status_history(conn, order_id, user["id"], "", "Aberta", "OS criada automaticamente pela solicitacao de coleta")
+                created_order = {"id": order_id, "number": number}
+                params = (order_id, *params[1:])
+            if exists:
+                conn.execute(
+                    """UPDATE delivery_requests SET order_id=?,client_id=?,driver_id=?,type=?,status=?,priority=?,scheduled_date=?,
+                    scheduled_time=?,address=?,pickup_latitude=?,pickup_longitude=?,distance_km=?,freight_value=?,assignment_status=?,assignment_started_at=?,document_status=?,document_notes=?,proof_url=?,notes=?,
+                    updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                    (*params, item_id),
+                )
+                if exists["status"] != params[4]:
+                    self.insert_delivery_event(conn, item_id, user["id"], exists["status"], params[4], data.get("event_note", "Status atualizado"))
+                action = "Solicitacao logistica editada"
+            else:
+                conn.execute(
+                    """INSERT INTO delivery_requests(id,order_id,client_id,driver_id,type,status,priority,scheduled_date,scheduled_time,address,
+                    pickup_latitude,pickup_longitude,distance_km,freight_value,assignment_status,assignment_started_at,document_status,document_notes,proof_url,notes)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (item_id, *params),
+                )
+                self.insert_delivery_event(conn, item_id, user["id"], "", params[4], "Solicitacao criada")
+                action = "Solicitacao logistica criada"
+            if params[4] == "Coletando":
+                conn.execute("UPDATE delivery_requests SET collected_at=COALESCE(collected_at,?) WHERE id=?", (now(), item_id))
+            if params[4] == "Entregue":
+                conn.execute("UPDATE delivery_requests SET delivered_at=COALESCE(delivered_at,?) WHERE id=?", (now(), item_id))
+            if params[2] and params[4] in DELIVERY_DRIVER_STATUSES:
+                conn.execute("UPDATE delivery_drivers SET status=? WHERE id=?", (params[4], params[2]))
+            conn.commit()
+        if created_order:
+            self.audit(user["id"], "OS criada automaticamente por coleta", f"OS {created_order['number']}")
+        self.audit(user["id"], action, item_id)
+        self.send_json(row("SELECT * FROM delivery_requests WHERE id=?", (item_id,)), 201 if not exists else 200)
+
+    def dispatch_delivery(self, path, user):
+        delivery_id = path.split("/")[-1]
+        with db() as conn:
+            expire_delivery_offers(conn)
+            offer, message = assign_next_delivery_driver(conn, delivery_id, user["id"])
+            conn.commit()
+        if not offer:
+            self.send_json({"error": message}, 400)
+            return
+        self.audit(user["id"], "Entrega distribuida automaticamente", f"{delivery_id}: {message}")
+        self.send_json({"offer": offer, "message": message, "delivery": row("SELECT * FROM delivery_requests WHERE id=?", (delivery_id,))})
+
+    def answer_delivery_offer(self, path, data, user):
+        offer_id = path.split("/")[-2] if path.endswith(("/accept", "/reject")) else path.split("/")[-1]
+        action = path.split("/")[-1]
+        if action not in ("accept", "reject"):
+            self.send_json({"error": "Acao da oferta nao encontrada."}, 404)
+            return
+        with db() as conn:
+            expire_delivery_offers(conn)
+            offer = conn.execute("SELECT * FROM delivery_assignment_offers WHERE id=?", (offer_id,)).fetchone()
+            if not offer:
+                self.send_json({"error": "Oferta nao encontrada."}, 404)
+                return
+            if offer["status"] != "Oferecida":
+                self.send_json({"error": f"Oferta ja esta como {offer['status']}."}, 400)
+                return
+            delivery = conn.execute("SELECT * FROM delivery_requests WHERE id=?", (offer["delivery_id"],)).fetchone()
+            driver = conn.execute("SELECT * FROM delivery_drivers WHERE id=?", (offer["driver_id"],)).fetchone()
+            if action == "accept":
+                conn.execute("UPDATE delivery_assignment_offers SET status='Aceita',responded_at=?,note=? WHERE id=?", (now(), data.get("note", "Aceita pelo operador."), offer_id))
+                conn.execute("UPDATE delivery_requests SET driver_id=?,status='Em rota',assignment_status='Aceita',updated_at=CURRENT_TIMESTAMP WHERE id=?", (offer["driver_id"], offer["delivery_id"]))
+                conn.execute("UPDATE delivery_drivers SET status='Em rota' WHERE id=?", (offer["driver_id"],))
+                self.insert_delivery_event(conn, offer["delivery_id"], user["id"], delivery["status"] if delivery else "", "Em rota", f"Oferta aceita por {driver['name'] if driver else 'motoboy'}.")
+                message = "Oferta aceita. Motoboy em rota."
+            else:
+                conn.execute("UPDATE delivery_assignment_offers SET status='Recusada',responded_at=?,note=? WHERE id=?", (now(), data.get("note", "Recusada pelo operador."), offer_id))
+                self.insert_delivery_event(conn, offer["delivery_id"], user["id"], delivery["status"] if delivery else "", "Aguardando aceite", f"Oferta recusada por {driver['name'] if driver else 'motoboy'}.")
+                next_offer, next_message = assign_next_delivery_driver(conn, offer["delivery_id"], user["id"], auto=True)
+                message = f"Oferta recusada. {next_message}"
+            conn.commit()
+        self.audit(user["id"], "Resposta de oferta de entrega", f"{offer_id}: {action}")
+        self.send_json({"message": message, "delivery": row("SELECT * FROM delivery_requests WHERE id=?", (offer["delivery_id"],))})
+
+    def save_delivery_location(self, data, user):
+        delivery_id = data.get("delivery_id")
+        latitude = as_float(data.get("latitude"))
+        longitude = as_float(data.get("longitude"))
+        if not delivery_id or latitude is None or longitude is None:
+            self.send_json({"error": "Informe entrega, latitude e longitude."}, 400)
+            return
+        status = data.get("status") or ""
+        with db() as conn:
+            delivery = conn.execute("SELECT * FROM delivery_requests WHERE id=?", (delivery_id,)).fetchone()
+            if not delivery:
+                self.send_json({"error": "Entrega nao encontrada."}, 404)
+                return
+            driver_id = data.get("driver_id") or delivery["driver_id"]
+            if driver_id:
+                driver = conn.execute("SELECT id FROM delivery_drivers WHERE id=?", (driver_id,)).fetchone()
+                if not driver:
+                    self.send_json({"error": "Motoboy nao encontrado."}, 404)
+                    return
+            location_id = uid("loc")
+            conn.execute(
+                """INSERT INTO delivery_locations(id,delivery_id,driver_id,latitude,longitude,accuracy_m,status,source,recorded_at)
+                VALUES(?,?,?,?,?,?,?,?,?)""",
+                (location_id, delivery_id, driver_id, latitude, longitude, as_float(data.get("accuracy_m")), status or delivery["status"], data.get("source", "painel"), now()),
+            )
+            if driver_id:
+                conn.execute("UPDATE delivery_drivers SET latitude=?,longitude=? WHERE id=?", (latitude, longitude, driver_id))
+            updates = ["updated_at=CURRENT_TIMESTAMP"]
+            params = []
+            if driver_id and not delivery["driver_id"]:
+                updates.append("driver_id=?")
+                params.append(driver_id)
+            if status and status != delivery["status"]:
+                updates.append("status=?")
+                params.append(status)
+                self.insert_delivery_event(conn, delivery_id, user["id"], delivery["status"], status, data.get("note", "Status atualizado pelo rastreamento."))
+            if status == "Coletando":
+                updates.append("collected_at=COALESCE(collected_at,?)")
+                params.append(now())
+            if status == "Entregue":
+                updates.append("delivered_at=COALESCE(delivered_at,?)")
+                params.append(now())
+            if status and driver_id and status in DELIVERY_DRIVER_STATUSES:
+                conn.execute("UPDATE delivery_drivers SET status=? WHERE id=?", (status, driver_id))
+            params.append(delivery_id)
+            conn.execute(f"UPDATE delivery_requests SET {', '.join(updates)} WHERE id=?", params)
+            conn.commit()
+        self.audit(user["id"], "GPS da entrega registrado", delivery_id)
+        self.send_json({
+            "ok": True,
+            "location": row("SELECT * FROM delivery_locations WHERE id=?", (location_id,)),
+            "delivery": row("SELECT * FROM delivery_requests WHERE id=?", (delivery_id,)),
+        }, 201)
+
+    def save_delivery_settings(self, data, user):
+        with db() as conn:
+            exists = conn.execute("SELECT id FROM delivery_settings WHERE id=1").fetchone()
+            params = (float(data.get("price_per_km", 0) or 0), float(data.get("minimum_fee", 0) or 0), float(data.get("free_radius_km", 0) or 0), data.get("notes", ""))
+            if exists:
+                conn.execute("UPDATE delivery_settings SET price_per_km=?,minimum_fee=?,free_radius_km=?,notes=? WHERE id=1", params)
+            else:
+                conn.execute("INSERT INTO delivery_settings(id,price_per_km,minimum_fee,free_radius_km,notes) VALUES(1,?,?,?,?)", params)
+            conn.commit()
+        self.audit(user["id"], "Configuracao de frete atualizada", f"{data.get('price_per_km', '')}/km")
+        self.send_json(row("SELECT * FROM delivery_settings WHERE id=1"))
 
     def save_purchase(self, data, user):
         items = data.get("items", [])
@@ -2239,6 +3053,8 @@ class App(BaseHTTPRequestHandler):
             "parts": ("parts", "Peca excluida", "estoque"),
             "services": ("services", "Servico excluido", "servicos"),
             "finance": ("finance_entries", "Lancamento financeiro excluido", "financeiro"),
+            "delivery-drivers": ("delivery_drivers", "Motoboy excluido", "logistica"),
+            "delivery-requests": ("delivery_requests", "Solicitacao logistica excluida", "logistica"),
             "users": ("users", "Usuario excluido", "configuracoes"),
             "roles": ("roles", "Perfil excluido", "configuracoes"),
         }

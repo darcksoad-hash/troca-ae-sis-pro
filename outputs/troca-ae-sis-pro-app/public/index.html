@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Troca Ae SIS PRO - App</title>
   <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <meta name="theme-color" content="#f9732f">
   <style>
     :root { --orange:#f9732f; --green:#f9732f; --green-2:#fff1e8; --blue:#1d5f8f; --blue-2:#e3eff8; --amber:#9a6b12; --amber-2:#fff2ce; --red:#aa3a35; --red-2:#fae7e5; --bg:#f7f8fb; --surface:#ffffff; --ink:#20242a; --muted:#667085; --line:#e4e7ec; --card:#fff; --surface-2:#f2f4f7; --shadow:0 14px 34px rgba(16,24,40,.08); --radius:8px; --sidebar-width:72px; }
@@ -37,9 +39,9 @@
     body:not(.sidebar-fixed) aside:not(:hover) .brand-text, body:not(.sidebar-fixed) aside:not(:hover) .nav-label { opacity:0; pointer-events:none; }
     .sidebar-pin { width:34px; height:34px; display:grid; place-items:center; color:var(--orange); padding:0; }
     nav { display:grid; gap:5px; }
-    aside button[data-page] { width:236px; min-width:236px; border:0; background:transparent; color:#475467; display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px; text-align:left; box-shadow:none; }
-    aside button[data-page]:hover { background:#fff4ed; color:var(--orange); }
-    aside button.active { background:var(--orange); color:white; box-shadow:0 10px 20px rgba(249,115,47,.22); }
+    aside [data-page] { width:236px; min-width:236px; border:0; background:transparent; color:#475467; display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:8px; text-align:left; box-shadow:none; text-decoration:none; font:inherit; }
+    aside [data-page]:hover { background:#fff4ed; color:var(--orange); }
+    aside [data-page].active { background:var(--orange); color:white; box-shadow:0 10px 20px rgba(249,115,47,.22); }
     .nav-ico { width:22px; text-align:center; flex:0 0 22px; }
     .nav-label { transition:opacity .18s ease; }
     main { padding:24px 28px; min-width:0; width:100%; }
@@ -98,6 +100,7 @@
     .detail-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
     .money { color:var(--orange); font-weight:800; }
     .empty { color:var(--muted); padding:18px; border:1px dashed var(--line); border-radius:8px; background:#fbfcfd; }
+    .map-box { min-height:360px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#f8fafc; }
     .export-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
     .export-grid .icon-btn { width:auto; min-width:46px; padding:0 10px; font-size:12px; font-weight:800; }
     .report-period { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
@@ -117,7 +120,7 @@
     body.dark-mode input, body.dark-mode select, body.dark-mode textarea, body.dark-mode button, body.dark-mode .btn, body.dark-mode .icon-btn { background:#101318; color:var(--ink); border-color:var(--line); }
     body.dark-mode th { background:var(--surface-2); }
     body.dark-mode .summary-item, body.dark-mode .empty { background:#101318; }
-    @media (max-width:980px) { .app, body.sidebar-fixed .app{grid-template-columns:1fr} aside, body.sidebar-fixed aside{position:static;height:auto;width:100%;padding:14px;box-shadow:none} body:not(.sidebar-fixed) aside:not(:hover) .brand-text, body:not(.sidebar-fixed) aside:not(:hover) .nav-label{opacity:1;pointer-events:auto}.brand{min-width:0;padding-bottom:12px} nav{grid-template-columns:repeat(3,minmax(0,1fr))} aside button[data-page]{width:auto;min-width:0}.kpis{grid-template-columns:repeat(2,1fr)} .split,.dash-grid{grid-template-columns:1fr} header{align-items:flex-start;flex-direction:column}.toolbar{justify-content:flex-start} }
+    @media (max-width:980px) { .app, body.sidebar-fixed .app{grid-template-columns:1fr} aside, body.sidebar-fixed aside{position:static;height:auto;width:100%;padding:14px;box-shadow:none} body:not(.sidebar-fixed) aside:not(:hover) .brand-text, body:not(.sidebar-fixed) aside:not(:hover) .nav-label{opacity:1;pointer-events:auto}.brand{min-width:0;padding-bottom:12px} nav{grid-template-columns:repeat(3,minmax(0,1fr))} aside [data-page]{width:auto;min-width:0}.kpis{grid-template-columns:repeat(2,1fr)} .split,.dash-grid{grid-template-columns:1fr} header{align-items:flex-start;flex-direction:column}.toolbar{justify-content:flex-start} }
     @media (max-width:980px) { .filters{grid-template-columns:1fr} .two,.ops-layout,.split{grid-template-columns:1fr}.os-list{max-height:none}.export-grid{grid-template-columns:1fr 1fr}.report-period{grid-template-columns:1fr 1fr} }
     @media (max-width:560px) { main{padding:14px} nav{grid-template-columns:1fr 1fr} header{display:grid} .kpis,.form-grid,.detail-grid,.filters{grid-template-columns:1fr} .toolbar,.actions{width:100%;justify-content:flex-start} button{white-space:normal} }
   </style>
@@ -180,16 +183,17 @@
         <button class="sidebar-pin" id="sidebarPinBtn" type="button" title="Fixar menu">&#8660;</button>
       </div>
       <nav>
-        <button class="active" data-page="dashboard"><span class="nav-ico">&#9638;</span><span class="nav-label">Painel</span></button>
-        <button data-page="clients"><span class="nav-ico">&#9673;</span><span class="nav-label">Clientes</span></button>
-        <button data-page="orders"><span class="nav-ico">&#9635;</span><span class="nav-label">Ordens de servico</span></button>
-        <button data-page="catalog"><span class="nav-ico">&#9671;</span><span class="nav-label">Fabricantes</span></button>
-        <button data-page="parts"><span class="nav-ico">&#9639;</span><span class="nav-label">Pecas</span></button>
-        <button data-page="services"><span class="nav-ico">&#9672;</span><span class="nav-label">Servicos</span></button>
-        <button data-page="pos"><span class="nav-ico">&#9702;</span><span class="nav-label">PDV</span></button>
-        <button data-page="finance"><span class="nav-ico">&#9670;</span><span class="nav-label">Financeiro</span></button>
-        <button data-page="reports"><span class="nav-ico">&#9636;</span><span class="nav-label">Relatorios</span></button>
-        <button data-page="settings"><span class="nav-ico">&#9873;</span><span class="nav-label">Configuracoes</span></button>
+        <a class="active" href="?page=dashboard" data-page="dashboard"><span class="nav-ico">&#9638;</span><span class="nav-label">Painel</span></a>
+        <a href="?page=clients" data-page="clients"><span class="nav-ico">&#9673;</span><span class="nav-label">Clientes</span></a>
+        <a href="?page=orders" data-page="orders"><span class="nav-ico">&#9635;</span><span class="nav-label">Ordens de servico</span></a>
+        <a href="?page=catalog" data-page="catalog"><span class="nav-ico">&#9671;</span><span class="nav-label">Fabricantes</span></a>
+        <a href="?page=parts" data-page="parts"><span class="nav-ico">&#9639;</span><span class="nav-label">Pecas</span></a>
+        <a href="?page=services" data-page="services"><span class="nav-ico">&#9672;</span><span class="nav-label">Servicos</span></a>
+        <a href="?page=pos" data-page="pos"><span class="nav-ico">&#9702;</span><span class="nav-label">PDV</span></a>
+        <a href="?page=delivery" data-page="delivery"><span class="nav-ico">&#10148;</span><span class="nav-label">Coleta e Entrega</span></a>
+        <a href="?page=finance" data-page="finance"><span class="nav-ico">&#9670;</span><span class="nav-label">Financeiro</span></a>
+        <a href="?page=reports" data-page="reports"><span class="nav-ico">&#9636;</span><span class="nav-label">Relatorios</span></a>
+        <a href="?page=settings" data-page="settings"><span class="nav-ico">&#9873;</span><span class="nav-label">Configuracoes</span></a>
       </nav>
     </aside>
     <main>
@@ -203,9 +207,11 @@
 
   <script>
     let token = localStorage.getItem('troca-ae-token') || '';
-    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], parts_meta:{ total:0, page:1, page_size:20 }, services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], orders:[], finance:[], cash_sessions:[], report_summary:{} };
+    let state = { company:null, database:null, me:null, clients:[], manufacturers:[], models:[], parts:[], parts_meta:{ total:0, page:1, page_size:20 }, services:[], suppliers:[], stock_movements:[], purchases:[], purchase_items:[], pos_sales:[], pos_sale_items:[], delivery_requests:[], delivery_drivers:[], delivery_events:[], delivery_assignment_offers:[], delivery_settings:null, delivery_summary:{}, orders:[], finance:[], cash_sessions:[], report_summary:{} };
     let selectedOrderId = '';
     let selectedUserId = '';
+    let deliveryMap = null;
+    let deliveryTrackingWatchId = null;
     let focusMemory = null;
     let sidebarFixed = localStorage.getItem('troca-ae-sidebar-fixed') === '1';
     let activePage = 'dashboard';
@@ -219,7 +225,7 @@
     let dashboardCache = { expiresAt: 0, data: null };
     const pageCacheVersion = '2026-06-16-neon-migrated-v2';
     const pageCacheSeconds = 8 * 60;
-    const pageNames = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
+    const pageNames = { dashboard:'Painel geral', clients:'Clientes', orders:'Ordens de servico', catalog:'Fabricantes e modelos', parts:'Pecas e estoque', services:'Servicos', pos:'PDV', delivery:'Coleta e Entrega', finance:'Financeiro', reports:'Relatorios', settings:'Configuracoes' };
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -360,11 +366,11 @@
       }
     };
 
-    document.querySelectorAll('aside button[data-page]').forEach(button => {
-      button.onclick = () => {
-        render(button.dataset.page);
-      };
-    });
+    function bindNavigation() {
+      document.querySelectorAll('aside [data-page]').forEach(link => {
+        link.setAttribute('href', `?page=${link.dataset.page}`);
+      });
+    }
 
     document.getElementById('sidebarPinBtn').onclick = () => {
       sidebarFixed = !sidebarFixed;
@@ -379,9 +385,10 @@
       state = await api('/api/bootstrap-lite');
       applyBranding();
       updateSidebarPin();
+      bindNavigation();
       applyPermissions();
       const requestedPage = new URLSearchParams(location.search).get('page') || 'dashboard';
-      await render(document.querySelector(`aside button[data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
+      await render(document.querySelector(`aside [data-page="${requestedPage}"]:not(.hidden)`) ? requestedPage : 'dashboard');
       setTimeout(prefetchPageData, 800);
     }
 
@@ -418,11 +425,12 @@
         parts: can('estoque', 'ver'),
         services: can('servicos', 'ver'),
         pos: can('pdv', 'ver') || (can('financeiro','criar') && can('estoque','movimentar')),
+        delivery: can('logistica', 'ver'),
         finance: can('financeiro', 'ver'),
         reports: can('relatorios', 'ver'),
         settings: true
       };
-      document.querySelectorAll('aside button[data-page]').forEach(button => {
+      document.querySelectorAll('aside [data-page]').forEach(button => {
         button.classList.toggle('hidden', !visible[button.dataset.page]);
       });
     }
@@ -516,7 +524,7 @@
       const targetPage = normalizePage(page);
       activePage = targetPage;
       document.getElementById('title').textContent = pageNames[targetPage] || 'Painel';
-      document.querySelectorAll('aside button[data-page]').forEach(button => {
+      document.querySelectorAll('aside [data-page]').forEach(button => {
         button.classList.toggle('active', normalizePage(button.dataset.page) === targetPage);
       });
     }
@@ -587,7 +595,7 @@
 
     async function ensurePageData(page) {
       const targetPage = normalizePage(page);
-      if (!['clients','orders','catalog','parts','services','pos','finance','reports','settings'].includes(targetPage)) return;
+      if (!['clients','orders','catalog','parts','services','pos','delivery','finance','reports','settings'].includes(targetPage)) return;
       if (loadedPages.has(targetPage)) return;
       const cached = readPageCache(targetPage);
       if (cached) {
@@ -630,6 +638,7 @@
         if (targetPage === 'parts') await renderParts();
         if (targetPage === 'services') renderServices();
         if (targetPage === 'pos') renderPOS();
+        if (targetPage === 'delivery') renderDelivery();
         if (targetPage === 'finance') renderFinance();
         if (targetPage === 'reports') renderReports();
         if (targetPage === 'settings') renderSettings();
@@ -646,6 +655,18 @@
         </div></div>`;
       }
     }
+
+    window.navigatePage = page => {
+      render(page);
+    };
+
+    setInterval(async () => {
+      if (activePage !== 'delivery' || !token) return;
+      try {
+        await refreshPageData('delivery');
+        renderDelivery();
+      } catch (error) {}
+    }, 30000);
 
     async function renderDashboard() {
       const pageAtStart = activePage;
@@ -823,6 +844,7 @@
       if (!order.detail_loaded) return `<div class="panel"><div class="panel-head"><h2>OS #${order.number}</h2>${badge(order.status)}</div><div class="panel-body muted">Carregando detalhes da OS...</div></div>`;
       const parts = order.parts?.map(item => `${item.name} (${item.quantity}) - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhuma peca';
       const services = order.services?.map(item => `${item.name} - garantia ${item.warranty_days || 90} dias`).join('<br>') || 'Nenhum servico';
+      const collections = order.delivery_collections?.map(item => `${badge(item.status)} ${item.address || 'Endereco nao informado'}${item.driver_name ? `<br><small class="muted">Motoboy: ${item.driver_name}</small>` : ''}`).join('<hr style="border:0;border-top:1px solid var(--line)">') || 'Sem coleta vinculada';
       const history = order.status_history?.map(item => `<div class="summary-item"><strong>${item.old_status || 'Inicio'} -> ${item.new_status}</strong><span>${item.created_at || ''} ${item.user_name ? `por ${item.user_name}` : ''}<br>${item.note || ''}</span></div>`).join('') || '<div class="muted">Nenhuma movimentacao de status registrada.</div>';
       return `<div class="panel">
         <div class="panel-head"><h2>OS #${order.number}</h2>${badge(order.status)}</div>
@@ -833,6 +855,7 @@
             ${can('financeiro','pagar') ? `<button onclick="payOrder('${order.id}')">Pagamentos</button>` : ''}
             ${can('os','finalizar') ? `<button onclick="finishOrder('${order.id}')">Finalizar OS</button>` : ''}
             ${can('os','imprimir') ? `<button onclick="printOrder('${order.id}')">Imprimir OS</button>` : ''}
+            ${can('os','ver') ? `<button onclick="customerPortalLink('${order.id}')">Portal cliente</button>` : ''}
             ${can('os','aprovar') ? `<button onclick="signatureForm('${order.id}','approval')">Aprovar com assinatura</button>` : ''}
             ${can('os','finalizar') ? `<button onclick="signatureForm('${order.id}','delivery')">Assinar entrega</button>` : ''}
             <button onclick="sendOrderWhatsApp('${order.id}','budget')">WhatsApp orcamento</button>
@@ -844,6 +867,7 @@
             <div class="detail-item"><span>Status</span>${order.status}<br><small class="muted">${order.priority}</small></div>
             <div class="detail-item"><span>Pagamento</span>Pago ${money(order.calc?.paid || 0)}<br><small class="muted">Saldo ${money(order.calc?.balance || 0)}</small></div>
             <div class="detail-item"><span>Defeito</span>${order.defect || 'Nao informado'}</div>
+            <div class="detail-item"><span>Coleta vinculada</span>${collections}</div>
             <div class="detail-item"><span>Diagnostico</span>${order.diagnosis || 'Nao informado'}</div>
             <div class="detail-item"><span>Pecas</span>${parts}</div>
             <div class="detail-item"><span>Servicos</span>${services}</div>
@@ -1030,6 +1054,33 @@
       await refreshPageData('orders');
       selectedOrderId = id;
       renderOrders();
+    }
+
+    async function customerPortalLink(id) {
+      const portalWindow = window.open('about:blank', '_blank');
+      if (portalWindow) {
+        portalWindow.document.write('<!doctype html><title>Portal do Cliente</title><body style="font-family:Arial,sans-serif;padding:24px">Gerando link seguro do cliente...</body>');
+        portalWindow.document.close();
+      }
+      await loadSelectedOrderDetail(id);
+      try {
+        const result = await api(`/api/orders/${id}/portal-link`, { method:'POST', body: JSON.stringify({}) });
+        if (portalWindow) {
+          portalWindow.location.href = result.url;
+        } else {
+          location.href = result.url;
+          return;
+        }
+        const copied = await navigator.clipboard?.writeText(result.url).then(() => true).catch(() => false);
+        if (!portalWindow) {
+          alert(`O navegador bloqueou a abertura automatica.\n\nLink do cliente:${copied ? ' copiado para a area de transferencia.' : ''}\n\n${result.url}\n\nValido ate ${result.expires_at}.`);
+        } else if (copied) {
+          alert(`Portal do cliente aberto em uma nova aba.\n\nO link tambem foi copiado:\n${result.url}`);
+        }
+      } catch (error) {
+        if (portalWindow) portalWindow.close();
+        alert(error.message || 'Nao foi possivel abrir o portal do cliente.');
+      }
     }
 
     async function finishOrder(id) {
@@ -1561,6 +1612,8 @@
       ['estoque', 'Pecas e estoque', ['ver','criar','editar','movimentar','excluir']],
       ['servicos', 'Servicos', ['ver','criar','editar','excluir']],
       ['pdv', 'PDV', ['ver','criar','editar','excluir']],
+      ['logistica', 'Coleta e Entrega', ['ver','criar','editar','excluir']],
+      ['cliente_portal', 'Portal do Cliente', ['consultar_os','ver_status','ver_orcamento','aprovar_orcamento','recusar_orcamento','ver_fotos','ver_historico','ver_frete','solicitar_coleta','solicitar_devolucao','realizar_pagamento']],
       ['financeiro', 'Financeiro', ['ver','criar','editar','pagar','excluir']],
       ['relatorios', 'Relatorios', ['ver','exportar']],
       ['fabricantes', 'Fabricantes e modelos', ['ver','criar','editar','excluir']],
@@ -1670,6 +1723,272 @@
         }
         return api('/api/pos-sales', { method:'POST', body: JSON.stringify(data) });
       }, 'pos');
+    }
+
+    function deliveryClientName(item) {
+      return item.client_name || clientName(item.client_id) || 'Sem cliente';
+    }
+
+    function deliveryOrderName(item) {
+      return item.order_number ? `OS #${item.order_number}` : 'Sem OS';
+    }
+
+    function deliveryDriverName(id) {
+      return state.delivery_drivers.find(driver => driver.id === id)?.name || 'Sem motoboy';
+    }
+
+    const deliveryRequestStatuses = ['Solicitada','Aguardando aceite','Em rota','Coletando','Em transporte','Entregue','Cancelada'];
+    const deliveryDriverStatuses = ['Disponível','Em rota','Coletando','Em transporte','Entregue','Offline'];
+
+    function deliveryOffers(id) {
+      return (state.delivery_assignment_offers || []).filter(offer => offer.delivery_id === id);
+    }
+
+    function currentOffer(id) {
+      return deliveryOffers(id).find(offer => offer.status === 'Oferecida') || null;
+    }
+
+    function renderDelivery() {
+      const query = document.getElementById('deliverySearch')?.value || '';
+      const status = document.getElementById('deliveryStatusFilter')?.value || '';
+      const requests = (state.delivery_requests || []).filter(item => {
+        const haystack = { ...item, client: deliveryClientName(item), driver: deliveryDriverName(item.driver_id), order: deliveryOrderName(item) };
+        return item.type === 'Coleta' && textMatch(haystack, query) && (!status || item.status === status);
+      });
+      const collectionRows = paginate('delivery_collect', requests.filter(item => item.type === 'Coleta'));
+      const driverRows = paginate('delivery_drivers', state.delivery_drivers || []);
+      const summary = state.delivery_summary || {};
+      document.getElementById('content').innerHTML = `<div class="grid">
+        <div class="grid kpis">
+          <div class="kpi"><span>Coletas abertas</span><strong>${summary.open || 0}</strong><small>Solicitadas, aceite e transporte</small></div>
+          <div class="kpi"><span>Motoboys disponíveis</span><strong>${summary.available_drivers || 0}</strong><small>Prontos para receber oferta</small></div>
+          <div class="kpi"><span>Em rota</span><strong>${summary.in_route || 0}</strong><small>Motoboy em atendimento</small></div>
+          <div class="kpi"><span>Entregues</span><strong>${summary.finished || 0}</strong><small>Entregas concluidas</small></div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2>Rastreamento em tempo real</h2><div class="actions"><span class="muted">OpenStreetMap</span><button class="btn" onclick="stopDeliveryLiveTracking()">Parar GPS ao vivo</button></div></div><div class="panel-body"><div id="deliveryMap" class="map-box"></div></div></div>
+        <div class="panel"><div class="panel-head"><h2>Dashboard de coletas</h2>${can('logistica','criar') ? '<button class="btn primary" onclick="deliveryRequestForm()">+ Coleta</button>' : ''}</div><div class="panel-body">
+          <div class="filters">
+            <input id="deliverySearch" placeholder="Pesquisar cliente, OS, endereco ou motoboy" value="${query}" oninput="scheduleFilter('delivery','renderDelivery')">
+            <select id="deliveryStatusFilter" onchange="resetPage('delivery_collect');renderDelivery()"><option value="">Todos status</option>${deliveryRequestStatuses.map(value => `<option ${status === value ? 'selected' : ''}>${value}</option>`).join('')}</select>
+          </div>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>Solicitacoes de coleta</h2></div><div class="panel-body">
+          <table><thead><tr><th>Cliente / OS</th><th>Agenda</th><th>Motoboy</th><th>Status</th><th>Oferta</th><th>Frete</th><th>Acoes</th></tr></thead><tbody>
+            ${collectionRows.map(item => {
+              const offer = currentOffer(item.id);
+              const latest = item.latest_location;
+              return `<tr><td><strong>${deliveryClientName(item)}</strong><br><span class="muted">${deliveryOrderName(item)} | ${item.address || ''}</span></td><td>${item.scheduled_date || ''} ${item.scheduled_time || ''}<br><small class="muted">Coleta ${item.collected_at || '-'} | Entrega ${item.delivered_at || '-'}</small></td><td>${deliveryDriverName(item.driver_id)}<br><small class="muted">${latest ? `GPS ${latest.recorded_at}` : 'Sem GPS'}</small></td><td>${badge(item.status)}<br><small class="muted">${item.assignment_status || 'Manual'}</small></td><td>${offer ? `<strong>${offer.driver_name}</strong><br><span class="muted">${Number(offer.distance_km || 0).toFixed(2)} km | ate ${offer.expires_at}</span><div class="actions" style="margin-top:6px"><button class="btn" onclick="answerDeliveryOffer('${offer.id}','accept')">Aceitar</button><button class="btn danger" onclick="answerDeliveryOffer('${offer.id}','reject')">Recusar</button></div>` : '<span class="muted">Sem oferta ativa</span>'}</td><td>${money(item.freight_value)}</td><td><div class="actions">${can('logistica','editar') ? `<button class="btn" onclick="dispatchDelivery('${item.id}')">Distribuir</button><button class="btn" onclick="deliveryLocationForm('${item.id}')">GPS</button><button class="btn" onclick="startDeliveryLiveTracking('${item.id}')">Ao vivo</button><button class="icon-btn" onclick="deliveryRequestForm('${item.id}')" title="Editar">E</button>` : ''}${can('logistica','excluir') ? `<button class="icon-btn" onclick="removeRecord('delivery-requests','${item.id}','delivery')" title="Excluir">X</button>` : ''}</div></td></tr>`;
+            }).join('') || '<tr><td colspan="7" class="muted">Nenhuma coleta registrada.</td></tr>'}
+          </tbody></table>${pager('delivery_collect', requests.filter(item => item.type === 'Coleta').length, 'renderDelivery')}
+        </div></div>
+        <div class="grid two">
+          <div class="panel"><div class="panel-head"><h2>Cadastro de motoboys</h2>${can('logistica','criar') ? '<button class="btn primary" onclick="deliveryDriverForm()">+ Motoboy</button>' : ''}</div><div class="panel-body">
+            <table><thead><tr><th>Motoboy</th><th>Contato</th><th>Veiculo</th><th>Status</th><th>Acoes</th></tr></thead><tbody>
+              ${driverRows.map(driver => `<tr><td><strong>${driver.name}</strong><br><span class="muted">${driver.document || ''}</span></td><td>${driver.phone || ''}</td><td>${driver.vehicle || ''} ${driver.plate || ''}<br><span class="muted">${driver.latitude || ''}${driver.longitude ? `, ${driver.longitude}` : ''}</span></td><td>${badge(driver.status)}</td><td><div class="actions">${can('logistica','editar') ? `<button class="icon-btn" onclick="deliveryDriverForm('${driver.id}')" title="Editar">E</button>` : ''}${can('logistica','excluir') ? `<button class="icon-btn" onclick="removeRecord('delivery-drivers','${driver.id}','delivery')" title="Excluir">X</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum motoboy cadastrado.</td></tr>'}
+            </tbody></table>${pager('delivery_drivers', (state.delivery_drivers || []).length, 'renderDelivery')}
+          </div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2>Configuracao de frete por km</h2>${can('logistica','editar') ? '<button class="btn primary" onclick="deliverySettingsForm()">Salvar frete</button>' : ''}</div><div class="panel-body">
+          <div class="detail-grid">
+            <div><strong>Valor por km</strong><br>${money(state.delivery_settings?.price_per_km || 0)}</div>
+            <div><strong>Taxa minima</strong><br>${money(state.delivery_settings?.minimum_fee || 0)}</div>
+            <div><strong>Raio livre</strong><br>${Number(state.delivery_settings?.free_radius_km || 0)} km</div>
+            <div><strong>Observacoes</strong><br>${state.delivery_settings?.notes || ''}</div>
+          </div>
+        </div></div>
+      </div>`;
+      restoreFocus();
+      setTimeout(renderDeliveryMap, 0);
+    }
+
+    function deliveryRequestForm(id = '') {
+      const item = state.delivery_requests.find(row => row.id === id) || {};
+      const orderOptions = (state.orders || []).map(order => `<option value="${order.id}" ${item.order_id === order.id ? 'selected' : ''}>OS #${order.number} - ${order.client_name || ''}</option>`).join('');
+      formPanel(id ? 'Editar coleta' : 'Nova coleta', `
+        <label>Status<select name="status">${deliveryRequestStatuses.map(value => `<option ${item.status === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Prioridade<select name="priority">${['Baixa','Normal','Alta','Urgente'].map(value => `<option ${item.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>OS<select name="order_id"><option value="">Sem OS</option>${orderOptions}</select></label>
+        <label>Cliente<select name="client_id"><option value="">Selecione</option>${state.clients.map(client => `<option value="${client.id}" ${item.client_id === client.id ? 'selected' : ''}>${client.name}</option>`).join('')}</select></label>
+        <label>Motoboy<select name="driver_id"><option value="">Sem motoboy</option>${state.delivery_drivers.map(driver => `<option value="${driver.id}" ${item.driver_id === driver.id ? 'selected' : ''}>${driver.name}</option>`).join('')}</select></label>
+        <label>Data<input name="scheduled_date" type="date" value="${item.scheduled_date || ''}"></label>
+        <label>Horario<input name="scheduled_time" type="time" value="${item.scheduled_time || ''}"></label>
+        <label class="wide">Endereco<textarea name="address">${item.address || ''}</textarea></label>
+        <label>Latitude coleta<input name="pickup_latitude" type="number" step="0.000001" value="${item.pickup_latitude || ''}" placeholder="-23.550520"></label>
+        <label>Longitude coleta<input name="pickup_longitude" type="number" step="0.000001" value="${item.pickup_longitude || ''}" placeholder="-46.633308"></label>
+        <label>Distancia km<input name="distance_km" type="number" step="0.01" value="${item.distance_km || 0}"></label>
+        <label>Frete<input name="freight_value" type="number" step="0.01" value="${item.freight_value || ''}" placeholder="automatico se vazio"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, form => saveRecord('delivery-requests', id, Object.fromEntries(form.entries())), 'delivery');
+    }
+
+    function deliveryDriverForm(id = '') {
+      const item = state.delivery_drivers.find(row => row.id === id) || {};
+      formPanel(id ? 'Editar motoboy' : 'Novo motoboy', `
+        <label>Nome<input name="name" required value="${item.name || ''}"></label>
+        <label>Telefone<input name="phone" value="${item.phone || ''}"></label>
+        <label>Documento<input name="document" value="${item.document || ''}"></label>
+        <label>Veiculo<input name="vehicle" value="${item.vehicle || ''}"></label>
+        <label>Placa<input name="plate" value="${item.plate || ''}"></label>
+        <label>Status<select name="status">${deliveryDriverStatuses.map(value => `<option ${item.status === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Latitude atual<input name="latitude" type="number" step="0.000001" value="${item.latitude || ''}" placeholder="-23.550520"></label>
+        <label>Longitude atual<input name="longitude" type="number" step="0.000001" value="${item.longitude || ''}" placeholder="-46.633308"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, form => saveRecord('delivery-drivers', id, Object.fromEntries(form.entries())), 'delivery');
+    }
+
+    async function dispatchDelivery(id) {
+      try {
+        const result = await api(`/api/delivery-dispatch/${id}`, { method:'POST', body: JSON.stringify({}) });
+        alert(result.message || 'Oferta enviada.');
+        await refreshPageData('delivery');
+        renderDelivery();
+      } catch (error) {
+        alert(error.message || 'Nao foi possivel distribuir a entrega.');
+      }
+    }
+
+    async function answerDeliveryOffer(id, action) {
+      const label = action === 'accept' ? 'aceitar' : 'recusar';
+      if (!confirm(`Confirmar ${label} esta oferta?`)) return;
+      const result = await api(`/api/delivery-offers/${id}/${action}`, { method:'POST', body: JSON.stringify({}) });
+      alert(result.message || 'Oferta atualizada.');
+      await refreshPageData('delivery');
+      renderDelivery();
+    }
+
+    function renderDeliveryMap() {
+      const mapEl = document.getElementById('deliveryMap');
+      if (!mapEl) return;
+      if (!window.L) {
+        mapEl.innerHTML = '<div class="empty">Mapa indisponivel. Verifique a conexao com a internet.</div>';
+        return;
+      }
+      if (deliveryMap) {
+        deliveryMap.remove();
+        deliveryMap = null;
+      }
+      deliveryMap = L.map(mapEl);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(deliveryMap);
+      const bounds = [];
+      (state.delivery_requests || []).forEach(delivery => {
+        const history = (delivery.location_history || []).slice().reverse();
+        const route = history.map(point => [Number(point.latitude), Number(point.longitude)]).filter(point => point.every(Number.isFinite));
+        if (route.length) {
+          L.polyline(route, { color:'#f9732f', weight:4, opacity:.8 }).addTo(deliveryMap);
+          const latest = route[route.length - 1];
+          bounds.push(latest);
+          L.marker(latest).addTo(deliveryMap).bindPopup(`${deliveryClientName(delivery)}<br>${delivery.status || ''}<br>${delivery.latest_location?.recorded_at || ''}`);
+        } else if (delivery.pickup_latitude && delivery.pickup_longitude) {
+          const pickup = [Number(delivery.pickup_latitude), Number(delivery.pickup_longitude)];
+          if (pickup.every(Number.isFinite)) {
+            bounds.push(pickup);
+            L.circleMarker(pickup, { radius:7, color:'#1d5f8f' }).addTo(deliveryMap).bindPopup(`Ponto de coleta<br>${deliveryClientName(delivery)}`);
+          }
+        }
+      });
+      (state.delivery_drivers || []).forEach(driver => {
+        const point = [Number(driver.latitude), Number(driver.longitude)];
+        if (point.every(Number.isFinite)) {
+          bounds.push(point);
+          L.circleMarker(point, { radius:8, color:'#16a36a', fillOpacity:.85 }).addTo(deliveryMap).bindPopup(`${driver.name}<br>${driver.status || ''}`);
+        }
+      });
+      if (bounds.length) {
+        deliveryMap.fitBounds(bounds, { padding:[30,30], maxZoom:15 });
+      } else {
+        deliveryMap.setView([-23.55052, -46.633308], 11);
+      }
+    }
+
+    function deliveryLocationForm(id) {
+      const item = state.delivery_requests.find(row => row.id === id) || {};
+      const latest = item.latest_location || {};
+      formPanel('Registrar GPS da entrega', `
+        <label>Status<select name="status">${deliveryDriverStatuses.map(value => `<option ${item.status === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>
+        <label>Motoboy<select name="driver_id"><option value="">Usar motoboy da coleta</option>${state.delivery_drivers.map(driver => `<option value="${driver.id}" ${item.driver_id === driver.id ? 'selected' : ''}>${driver.name}</option>`).join('')}</select></label>
+        <label>Latitude<input id="deliveryLatitudeInput" name="latitude" type="number" step="0.000001" required value="${latest.latitude || item.pickup_latitude || ''}"></label>
+        <label>Longitude<input id="deliveryLongitudeInput" name="longitude" type="number" step="0.000001" required value="${latest.longitude || item.pickup_longitude || ''}"></label>
+        <label>Precisao metros<input name="accuracy_m" type="number" step="0.1" value="${latest.accuracy_m || ''}"></label>
+        <label class="wide">Observacao<textarea name="note"></textarea></label>
+        <div class="wide actions"><button type="button" class="btn" onclick="fillCurrentDeliveryPosition()">Usar localizacao atual</button></div>
+      `, async form => {
+        const data = Object.fromEntries(form.entries());
+        data.delivery_id = id;
+        data.source = 'painel';
+        await api('/api/delivery-location', { method:'POST', body: JSON.stringify(data) });
+        await refreshPageData('delivery');
+      }, 'delivery');
+    }
+
+    function fillCurrentDeliveryPosition() {
+      if (!navigator.geolocation) {
+        alert('Este navegador nao liberou geolocalizacao.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(position => {
+        document.getElementById('deliveryLatitudeInput').value = position.coords.latitude.toFixed(6);
+        document.getElementById('deliveryLongitudeInput').value = position.coords.longitude.toFixed(6);
+        const accuracy = document.querySelector('input[name="accuracy_m"]');
+        if (accuracy) accuracy.value = Math.round(position.coords.accuracy || 0);
+      }, error => alert(error.message || 'Nao foi possivel obter a localizacao.'));
+    }
+
+    function startDeliveryLiveTracking(id) {
+      if (!navigator.geolocation) {
+        alert('Este navegador nao liberou geolocalizacao.');
+        return;
+      }
+      const delivery = state.delivery_requests.find(item => item.id === id) || {};
+      const status = prompt('Status para enviar junto com o GPS', delivery.status || 'Em transporte') || delivery.status || 'Em transporte';
+      if (deliveryTrackingWatchId !== null) navigator.geolocation.clearWatch(deliveryTrackingWatchId);
+      deliveryTrackingWatchId = navigator.geolocation.watchPosition(async position => {
+        try {
+          await api('/api/delivery-location', {
+            method:'POST',
+            body: JSON.stringify({
+              delivery_id: id,
+              driver_id: delivery.driver_id || '',
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy_m: position.coords.accuracy,
+              status,
+              source: 'motoboy'
+            })
+          });
+          await refreshPageData('delivery');
+          if (activePage === 'delivery') renderDelivery();
+        } catch (error) {
+          console.warn(error);
+        }
+      }, error => alert(error.message || 'Nao foi possivel iniciar o GPS ao vivo.'), {
+        enableHighAccuracy: true,
+        maximumAge: 15000,
+        timeout: 20000
+      });
+      alert('GPS ao vivo iniciado. Mantenha esta pagina aberta no aparelho do motoboy.');
+    }
+
+    function stopDeliveryLiveTracking() {
+      if (deliveryTrackingWatchId === null) return;
+      navigator.geolocation.clearWatch(deliveryTrackingWatchId);
+      deliveryTrackingWatchId = null;
+      alert('GPS ao vivo parado.');
+    }
+
+    function deliverySettingsForm() {
+      const item = state.delivery_settings || {};
+      formPanel('Configuracao de frete', `
+        <label>Valor por km<input name="price_per_km" type="number" step="0.01" value="${item.price_per_km || 0}"></label>
+        <label>Taxa minima<input name="minimum_fee" type="number" step="0.01" value="${item.minimum_fee || 0}"></label>
+        <label>Raio livre km<input name="free_radius_km" type="number" step="0.01" value="${item.free_radius_km || 0}"></label>
+        <label class="wide">Observacoes<textarea name="notes">${item.notes || ''}</textarea></label>
+      `, async form => {
+        await api('/api/delivery-settings', { method:'POST', body: JSON.stringify(Object.fromEntries(form.entries())) });
+        await refreshPageData('delivery');
+      }, 'delivery');
     }
 
     function renderFinance() {
